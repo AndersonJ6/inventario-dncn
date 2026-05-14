@@ -3,7 +3,16 @@ import { mockEquipos } from '../../data/mockData';
 
 const equiposSlice = createSlice({
   name: 'equipos',
-  initialState: { list: mockEquipos, selected: null },
+  initialState: {
+    list: mockEquipos,
+    selected: null,
+    filters: {
+      sede: null,
+      area: null,
+      estado: null,
+      tipo: null
+    }
+  },
   reducers: {
     addEquipo:    (state, action) => { state.list.push(action.payload); },
     updateEquipo: (state, action) => {
@@ -14,8 +23,10 @@ const equiposSlice = createSlice({
       state.list = state.list.filter(e => e.id !== action.payload);
     },
     setSelected:  (state, action) => { state.selected = action.payload; },
+    setFilters:   (state, action) => { state.filters = { ...state.filters, ...action.payload }; },
+    clearFilters: (state) => { state.filters = { sede: null, area: null, estado: null, tipo: null }; },
   },
 });
 
-export const { addEquipo, updateEquipo, deleteEquipo, setSelected } = equiposSlice.actions;
+export const { addEquipo, updateEquipo, deleteEquipo, setSelected, setFilters, clearFilters } = equiposSlice.actions;
 export default equiposSlice.reducer;
