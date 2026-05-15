@@ -1,6 +1,9 @@
 import { useState, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { addEquipo, updateEquipo, deleteEquipo } from '../store/slices/equiposSlice';
+import {
+  addEquipo, updateEquipo, deleteEquipo,
+  setExcelData, clearExcelData, updateExcelRow, deleteExcelRow,
+} from '../store/slices/equiposSlice';
 import * as XLSX from 'xlsx';
 
 import {
@@ -80,20 +83,22 @@ const BASE_COLUMNS = [
 // ─── Componente ───────────────────────────────────────────────────────────────
 const Equipos = () => {
   const dispatch = useDispatch();
-  const equiposRedux = useSelector(
-    (s) => s.equipos.list ?? s.equipos.lista ?? []
-  );
 
-  const [excelData, setExcelData]     = useState(null);
+  // FIX 4: selector limpio, sin fallback innecesario a `lista`
+  const equiposRedux = useSelector((s) => s.equipos.list ?? []);
+
+  // FIX 1: excelData viene de Redux → persiste entre navegaciones
+  const excelData = useSelector((s) => s.equipos.excelData);
+
   const [loading, setLoading]         = useState(false);
   const [message, setMessage]         = useState(null);
   const [search, setSearch]           = useState('');
   const [page, setPage]               = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
 
-  const [open, setOpen]         = useState(false);
-  const [editingRow, setEditing] = useState(null);
-  const [form, setForm]         = useState({});
+  const [open, setOpen]          = useState(false);
+  const [editingRow, setEditing] = useState(null); // { row, index } | null
+  const [form, setForm]          = useState({});
 
   const fileInputRef = useRef(null);
 
@@ -123,7 +128,10 @@ const Equipos = () => {
       const rows = await readExcelFile(file);
       if (!rows.length) throw new Error('El archivo Excel está vacío.');
       const columns = normalizeColumns(rows);
-      setExcelData({ rows, columns, filename: file.name });
+
+      // FIX 1: guardar en Redux con la acción del slice
+      dispatch(setExcelData({ rows, columns, filename: file.name }));
+
       setMessage({
         type: 'success',
         text: `✓ "${file.name}" cargado — ${rows.length} registros · ${columns.length} columnas detectadas`,
@@ -137,7 +145,8 @@ const Equipos = () => {
   };
 
   const handleClearExcel = () => {
-    setExcelData(null);
+    // FIX 1: limpiar desde Redux
+    dispatch(clearExcelData());
     setSearch('');
     setPage(0);
     setMessage({ type: 'info', text: 'Excel eliminado. Mostrando inventario base.' });
@@ -146,8 +155,9 @@ const Equipos = () => {
 
   // ── Exportar ────────────────────────────────────────────────────────────────
   const handleExport = () => {
-    if (!activeData.length) return;
-    exportToExcel(activeData, activeColumns, excelData ? 'exportado' : 'equipos');
+    if (!filteredData.length) return;
+    // FIX 3: exportar filteredData, no activeData completo
+    exportToExcel(filteredData, activeColumns, excelData ? 'exportado' : 'equipos');
   };
 
   // ── CRUD ────────────────────────────────────────────────────────────────────
@@ -157,23 +167,19 @@ const Equipos = () => {
     setOpen(true);
   };
 
-  const handleOpenEdit = (row) => {
-    if (excelData) {
-      setEditing({ ...row, _excelIndex: excelData.rows.indexOf(row) });
-    } else {
-      setEditing(row);
-    }
+  // FIX 2: recibe índice explícito desde el map, sin indexOf
+  const handleOpenEdit = (row, realIndex) => {
+    setEditing({ row, index: realIndex });
     setForm({ ...row });
     setOpen(true);
   };
 
   const handleSave = () => {
-    if (excelData && editingRow?._excelIndex !== undefined) {
-      const updatedRows = [...excelData.rows];
-      updatedRows[editingRow._excelIndex] = { ...form };
-      setExcelData({ ...excelData, rows: updatedRows });
-    } else if (editingRow) {
-      dispatch(updateEquipo({ ...form, id: editingRow.id }));
+    if (excelData && editingRow !== null) {
+      // FIX 1 + 2: usar acción Redux con índice real
+      dispatch(updateExcelRow({ index: editingRow.index, row: { ...form } }));
+    } else if (editingRow !== null) {
+      dispatch(updateEquipo({ ...form, id: editingRow.row.id }));
     } else {
       const newId = Math.max(0, ...equiposRedux.map((e) => e.id || 0)) + 1;
       dispatch(addEquipo({ ...form, id: newId }));
@@ -181,11 +187,11 @@ const Equipos = () => {
     setOpen(false);
   };
 
-  const handleDelete = (row) => {
+  const handleDelete = (row, realIndex) => {
     if (!window.confirm('¿Eliminar este registro?')) return;
     if (excelData) {
-      const updatedRows = excelData.rows.filter((r) => r !== row);
-      setExcelData({ ...excelData, rows: updatedRows });
+      // FIX 1 + 2: usar acción Redux con índice real
+      dispatch(deleteExcelRow(realIndex));
     } else {
       dispatch(deleteEquipo(row.id));
     }
@@ -239,7 +245,7 @@ const Equipos = () => {
             variant="outlined"
             startIcon={<FileDownload />}
             onClick={handleExport}
-            disabled={!activeData.length}
+            disabled={!filteredData.length}
           >
             Exportar
           </Button>
@@ -331,7 +337,6 @@ const Equipos = () => {
                     {col.label}
                   </TableCell>
                 ))}
-                {/* ✅ Acciones SIEMPRE visible — sin condición */}
                 <TableCell sx={{ fontWeight: 700, bgcolor: 'grey.50', width: 90, textAlign: 'center' }}>
                   Acciones
                 </TableCell>
@@ -352,78 +357,97 @@ const Equipos = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                paginated.map((row, idx) => (
-                  <TableRow key={idx} hover sx={{ '&:last-child td': { border: 0 } }}>
-                    <TableCell sx={{ color: 'text.disabled', fontSize: '0.72rem' }}>
-                      {page * rowsPerPage + idx + 1}
-                    </TableCell>
+                // FIX 2: idx se usa para calcular el índice real en activeData
+                paginated.map((row, idx) => {
+                  // Índice real dentro de filteredData (que puede estar filtrado y paginado)
+                  const filteredIndex = page * rowsPerPage + idx;
+                  // Para operaciones sobre excelData.rows necesitamos el índice en activeData.
+                  // Si hay búsqueda activa, filteredData[filteredIndex] apunta a la fila correcta,
+                  // pero el índice en excelData.rows puede diferir. Lo resolvemos buscándolo una
+                  // sola vez de forma segura por referencia de objeto.
+                  const realIndex = excelData
+                    ? excelData.rows.indexOf(filteredData[filteredIndex])
+                    : filteredIndex;
 
-                    {activeColumns.map((col) => {
-                      const value = row[col.key];
-                      const displayVal = value !== '' && value != null ? String(value) : '—';
+                  return (
+                    <TableRow key={realIndex} hover sx={{ '&:last-child td': { border: 0 } }}>
+                      <TableCell sx={{ color: 'text.disabled', fontSize: '0.72rem' }}>
+                        {filteredIndex + 1}
+                      </TableCell>
 
-                      return (
-                        <TableCell
-                          key={col.key}
-                          sx={{
-                            fontSize: '0.78rem',
-                            whiteSpace: 'nowrap',
-                            maxWidth: 240,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                          }}
-                        >
-                          {looksLikeStatus(col.key) && value ? (
-                            <Chip
-                              label={displayVal}
+                      {activeColumns.map((col) => {
+                        const value = row[col.key];
+                        const displayVal = value !== '' && value != null ? String(value) : '—';
+
+                        return (
+                          <TableCell
+                            key={col.key}
+                            sx={{
+                              fontSize: '0.78rem',
+                              whiteSpace: 'nowrap',
+                              maxWidth: 240,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}
+                          >
+                            {looksLikeStatus(col.key) && value ? (
+                              <Chip
+                                label={displayVal}
+                                size="small"
+                                color={getChipColor(value)}
+                                sx={{ fontSize: '0.68rem', height: 20 }}
+                              />
+                            ) : (
+                              <Tooltip
+                                title={displayVal}
+                                placement="top-start"
+                                enterDelay={700}
+                                disableHoverListener={displayVal.length < 30}
+                              >
+                                <span>{displayVal}</span>
+                              </Tooltip>
+                            )}
+                          </TableCell>
+                        );
+                      })}
+
+                      <TableCell align="center">
+                        <Stack direction="row" spacing={0.5} justifyContent="center">
+                          <Tooltip title="Editar registro" placement="top">
+                            <IconButton
                               size="small"
-                              color={getChipColor(value)}
-                              sx={{ fontSize: '0.68rem', height: 20 }}
-                            />
-                          ) : (
-                            <Tooltip title={displayVal} placement="top-start" enterDelay={700} disableHoverListener={displayVal.length < 30}>
-                              <span>{displayVal}</span>
-                            </Tooltip>
-                          )}
-                        </TableCell>
-                      );
-                    })}
-
-                    {/* ✅ Acciones SIEMPRE visible — sin condición */}
-                    <TableCell align="center">
-                      <Stack direction="row" spacing={0.5} justifyContent="center">
-                        <Tooltip title="Editar registro" placement="top">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleOpenEdit(row)}
-                            sx={{
-                              color: 'primary.main',
-                              bgcolor: 'primary.50',
-                              '&:hover': { bgcolor: 'primary.100' },
-                              borderRadius: 1,
-                            }}
-                          >
-                            <Edit fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Eliminar registro" placement="top">
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => handleDelete(row)}
-                            sx={{
-                              bgcolor: 'error.50',
-                              '&:hover': { bgcolor: 'error.100' },
-                              borderRadius: 1,
-                            }}
-                          >
-                            <Delete fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </Stack>
-                    </TableCell>
-                  </TableRow>
-                ))
+                              // FIX 2: pasar realIndex explícito al handler
+                              onClick={() => handleOpenEdit(row, realIndex)}
+                              sx={{
+                                color: 'primary.main',
+                                bgcolor: 'primary.50',
+                                '&:hover': { bgcolor: 'primary.100' },
+                                borderRadius: 1,
+                              }}
+                            >
+                              <Edit fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Eliminar registro" placement="top">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              // FIX 2: pasar realIndex explícito al handler
+                              onClick={() => handleDelete(row, realIndex)}
+                              sx={{
+                                bgcolor: 'error.50',
+                                '&:hover': { bgcolor: 'error.100' },
+                                borderRadius: 1,
+                              }}
+                            >
+                              <Delete fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
