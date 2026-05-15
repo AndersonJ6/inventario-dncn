@@ -13,7 +13,6 @@ import {
   Stack,
   TextField,
   Typography,
-  Alert,
 } from '@mui/material';
 import { Add } from '@mui/icons-material';
 import DataTable from '../components/cammon/DataTable';
@@ -161,12 +160,21 @@ const Movimientos = () => {
 
   return (
     <Box>
-      <Typography variant="h5" fontWeight={700} gutterBottom>
-        Gestión de Movimientos
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Registra traslados, salidas y movimientos de equipos
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box>
+          <Typography variant="h5" fontWeight={700} gutterBottom>
+            Gestión de Movimientos
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Registra traslados, salidas y movimientos de equipos
+          </Typography>
+        </Box>
+        <ExportImportButtons
+          onExportExcel={handleExportExcel}
+          onExportPDF={handleExportPDF}
+          hideImport={true}
+        />
+      </Box>
 
       <DataTable
         data={movimientos}

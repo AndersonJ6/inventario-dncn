@@ -23,6 +23,7 @@ const ExportImportButtons = ({
   onExportPDF,
   onImportExcel,
   isLoading = false,
+  hideImport = false,
 }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [importDialog, setImportDialog] = useState(false);
@@ -118,7 +119,7 @@ const ExportImportButtons = ({
             Descargar PDF
           </MenuItem>
         )}
-        {onImportExcel && (
+        {!hideImport && onImportExcel && (
           <MenuItem onClick={handleOpenImportDialog}>
             <FileUpload sx={{ mr: 1 }} fontSize="small" />
             Importar Excel

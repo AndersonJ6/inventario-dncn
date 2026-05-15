@@ -26,26 +26,26 @@ export const exportEquiposPDF = (equipos, nombreArchivo = 'inventario-equipos') 
 
   // Tabla
   const columnas = [
-    'Código',
-    'Nombre',
-    'Tipo',
-    'Marca',
-    'Modelo',
-    'Estado',
-    'Sede',
-    'Área',
-  ];
+      'Código',
+      'Marca',
+      'Modelo',
+      'Generación',
+      'Procesador',
+      'RAM',
+      'S.O.',
+      'Estado S.O.',
+    ];
 
   const datos = equipos.map(equipo => [
-    equipo.codigoPatrimonial,
-    equipo.nombre.substring(0, 15),
-    equipo.tipo,
-    equipo.marca,
-    equipo.modelo.substring(0, 12),
-    equipo.estado,
-    equipo.sede,
-    equipo.area,
-  ]);
+      equipo.codigoPatrimonial,
+      equipo.marca,
+      equipo.modeloSistemas.substring(0, 12),
+      equipo.generacion,
+      equipo.procesador.substring(0, 15),
+      equipo.ram,
+      equipo.sistemaOperativo.substring(0, 12),
+      equipo.estadoSO,
+    ]);
 
   doc.autoTable({
     head: [columnas],
@@ -303,16 +303,15 @@ export const exportReportePDF = (equipos, mantenimientos, movimientos, estadisti
     doc.addPage();
     doc.setFontSize(14);
     doc.text('Inventario de Equipos', 14, 15);
-
-    const columnas = ['Código', 'Nombre', 'Tipo', 'Marca', 'Estado', 'Sede'];
-    const datos = equipos.slice(0, 50).map(eq => [
-      eq.codigoPatrimonial,
-      eq.nombre.substring(0, 12),
-      eq.tipo,
-      eq.marca,
-      eq.estado,
-      eq.sede,
-    ]);
+      const columnas = ['Código', 'Marca', 'Modelo', 'Procesador', 'RAM', 'S.O.'];
+      const datos = equipos.slice(0, 50).map(eq => [
+        eq.codigoPatrimonial,
+        eq.marca,
+        eq.modeloSistemas.substring(0, 12),
+        eq.procesador.substring(0, 12),
+        eq.ram,
+        eq.sistemaOperativo.substring(0, 12),
+      ]);
 
     doc.autoTable({
       head: [columnas],

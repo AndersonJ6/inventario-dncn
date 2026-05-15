@@ -20,6 +20,13 @@ import {
   CheckCircle,
   Inventory,
 } from '@mui/icons-material';
+import ExportImportButtons from '../components/cammon/ExportImportButtons';
+import {
+  exportTodoExcel,
+} from '../services/excelService';
+import {
+  exportReportePDF,
+} from '../services/pdfService';
 import {
   BarChart,
   Bar,
@@ -65,6 +72,7 @@ const StatCard = ({ icon, label, value, color, subtitle }) => (
 const Dashboard = () => {
   const equipos = useSelector((state) => state.equipos.list);
   const mantenimientos = useSelector((state) => state.mantenimiento.list);
+  const movimientos = useSelector((state) => state.movimientos.list);
   const usuarios = useSelector((state) => state.usuarios.list);
 
   // Estadísticas de equipos
@@ -118,14 +126,31 @@ const Dashboard = () => {
     [mantenimientos]
   );
 
+  const handleExportExcel = () => {
+    exportTodoExcel(equipos, mantenimientos, movimientos);
+  };
+
+  const handleExportPDF = () => {
+    exportReportePDF(equipos, mantenimientos, movimientos, stats);
+  };
+
   return (
     <Box>
-      <Typography variant="h5" fontWeight={700} gutterBottom>
-        Resumen general
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Estado actual del inventario tecnológico
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box>
+          <Typography variant="h5" fontWeight={700} gutterBottom>
+            Resumen general
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Estado actual del inventario tecnológico
+          </Typography>
+        </Box>
+        <ExportImportButtons
+          onExportExcel={handleExportExcel}
+          onExportPDF={handleExportPDF}
+          hideImport={true}
+        />
+      </Box>
 
       {/* Stats cards */}
       <Grid container spacing={2} sx={{ mb: 3 }}>

@@ -1,482 +1,468 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { addEquipo, updateEquipo, deleteEquipo } from '../store/slices/equiposSlice';
-import {
-  Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Grid,
-  MenuItem,
-  Stack,
-  TextField,
-  Typography,
-  Chip,
-  Alert,
-} from '@mui/material';
-import { Add } from '@mui/icons-material';
-import DataTable from '../components/cammon/DataTable';
-import ExportImportButtons from '../components/cammon/ExportImportButtons';
-import { SEDES, AREAS, ESTADOS_EQUIPOS, TIPOS_EQUIPOS, mockUsuarios } from '../data/mockData';
-import {
-  exportEquiposExcel,
-  importEquiposExcel,
-} from '../services/excelService';
-import {
-  exportEquiposPDF,
-} from '../services/pdfService';
+import * as XLSX from 'xlsx';
 
-const INITIAL_FORM = {
-  codigoPatrimonial: '',
-  nombre: '',
-  tipo: 'PC',
-  marca: '',
-  modelo: '',
-  serie: '',
-  procesador: '',
-  ram: '',
-  disco: '',
-  sistemaOperativo: '',
-  estado: 'En uso',
-  sede: 'Garzón',
-  area: '',
-  usuarioAsignado: null,
-  observaciones: '',
-  fechaAdquisicion: '',
+import {
+  Box, Button, Dialog, DialogActions, DialogContent, DialogTitle,
+  Stack, TextField, Typography, Chip, Alert, Paper, Table, TableBody,
+  TableCell, TableContainer, TableHead, TableRow, TablePagination,
+  IconButton, InputAdornment, Tooltip, LinearProgress, Fade,
+} from '@mui/material';
+import {
+  Add, Edit, Delete, Search, FileUpload, FileDownload, Close, TableChart,
+} from '@mui/icons-material';
+
+// ─── Leer Excel ───────────────────────────────────────────────────────────────
+const readExcelFile = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        resolve(rows);
+      } catch {
+        reject(new Error('No se pudo leer el archivo Excel.'));
+      }
+    };
+    reader.onerror = () => reject(new Error('Error al leer el archivo.'));
+    reader.readAsArrayBuffer(file);
+  });
+
+// ─── Exportar Excel ───────────────────────────────────────────────────────────
+const exportToExcel = (data, columns, filename = 'equipos') => {
+  const exportData = data.map((row) => {
+    const obj = {};
+    columns.forEach((col) => { obj[col.label] = row[col.key] ?? ''; });
+    return obj;
+  });
+  const ws = XLSX.utils.json_to_sheet(exportData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Equipos');
+  XLSX.writeFile(wb, `${filename}_${new Date().toISOString().slice(0, 10)}.xlsx`);
 };
 
+// ─── Columnas desde filas ─────────────────────────────────────────────────────
+const normalizeColumns = (rows) =>
+  Object.keys(rows[0]).map((key) => ({ key, label: key }));
+
+// ─── Detectar si columna es de estado para mostrar chip ──────────────────────
+const looksLikeStatus = (key) =>
+  /estado|status|activo|condicion|condición/i.test(key);
+
+const CHIP_MAP = {
+  success: ['activo', 'actualizado', 'operativo', 'bueno', 'si', 'sí', 'yes', 'completado'],
+  warning: ['mantenimiento', 'por actualizar', 'regular', 'pendiente', 'en proceso'],
+  error:   ['inactivo', 'baja', 'dañado', 'no', 'malo', 'falla'],
+};
+const getChipColor = (value) => {
+  const v = String(value).toLowerCase().trim();
+  for (const [color, words] of Object.entries(CHIP_MAP)) {
+    if (words.includes(v)) return color;
+  }
+  return 'default';
+};
+
+// ─── Columnas base cuando no hay Excel ───────────────────────────────────────
+const BASE_COLUMNS = [
+  { key: 'codigoPatrimonial', label: 'Código Patrimonial' },
+  { key: 'marca',             label: 'Marca'              },
+  { key: 'modeloSistemas',    label: 'Modelo'             },
+  { key: 'procesador',        label: 'Procesador'         },
+  { key: 'ram',               label: 'RAM'                },
+  { key: 'sistemaOperativo',  label: 'Sistema Operativo'  },
+  { key: 'estadoSO',          label: 'Estado SO'          },
+  { key: 'office',            label: 'Office'             },
+];
+
+// ─── Componente ───────────────────────────────────────────────────────────────
 const Equipos = () => {
   const dispatch = useDispatch();
-  const equipos = useSelector((state) => state.equipos.list);
-  const usuarios = useSelector((state) => state.usuarios.list);
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState(INITIAL_FORM);
-  const [editingId, setEditingId] = useState(null);
-  const [isImporting, setIsImporting] = useState(false);
-  const [importMessage, setImportMessage] = useState(null);
+  const equiposRedux = useSelector(
+    (s) => s.equipos.list ?? s.equipos.lista ?? []
+  );
 
-  const handleOpen = (equipo) => {
-    if (equipo) {
-      setEditingId(equipo.id);
-      setForm({
-        ...equipo,
-        usuarioAsignado: equipo.usuarioAsignado || null,
-        area: equipo.area || '',
+  const [excelData, setExcelData]     = useState(null);
+  const [loading, setLoading]         = useState(false);
+  const [message, setMessage]         = useState(null);
+  const [search, setSearch]           = useState('');
+  const [page, setPage]               = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+
+  const [open, setOpen]         = useState(false);
+  const [editingRow, setEditing] = useState(null);
+  const [form, setForm]         = useState({});
+
+  const fileInputRef = useRef(null);
+
+  const activeData    = excelData ? excelData.rows    : equiposRedux;
+  const activeColumns = excelData ? excelData.columns : BASE_COLUMNS;
+
+  const filteredData = activeData.filter((row) =>
+    activeColumns.some((col) =>
+      String(row[col.key] ?? '').toLowerCase().includes(search.toLowerCase())
+    )
+  );
+  const paginated = filteredData.slice(
+    page * rowsPerPage,
+    page * rowsPerPage + rowsPerPage
+  );
+
+  // ── Importar Excel ──────────────────────────────────────────────────────────
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = '';
+    setLoading(true);
+    setMessage(null);
+    setSearch('');
+    setPage(0);
+    try {
+      const rows = await readExcelFile(file);
+      if (!rows.length) throw new Error('El archivo Excel está vacío.');
+      const columns = normalizeColumns(rows);
+      setExcelData({ rows, columns, filename: file.name });
+      setMessage({
+        type: 'success',
+        text: `✓ "${file.name}" cargado — ${rows.length} registros · ${columns.length} columnas detectadas`,
       });
-    } else {
-      setEditingId(null);
-      setForm(INITIAL_FORM);
+      setTimeout(() => setMessage(null), 5000);
+    } catch (err) {
+      setMessage({ type: 'error', text: err.message });
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleClearExcel = () => {
+    setExcelData(null);
+    setSearch('');
+    setPage(0);
+    setMessage({ type: 'info', text: 'Excel eliminado. Mostrando inventario base.' });
+    setTimeout(() => setMessage(null), 3000);
+  };
+
+  // ── Exportar ────────────────────────────────────────────────────────────────
+  const handleExport = () => {
+    if (!activeData.length) return;
+    exportToExcel(activeData, activeColumns, excelData ? 'exportado' : 'equipos');
+  };
+
+  // ── CRUD ────────────────────────────────────────────────────────────────────
+  const handleOpenAdd = () => {
+    setEditing(null);
+    setForm({});
     setOpen(true);
   };
 
-  const handleClose = () => {
-    setOpen(false);
-    setForm(INITIAL_FORM);
-    setEditingId(null);
-  };
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+  const handleOpenEdit = (row) => {
+    if (excelData) {
+      setEditing({ ...row, _excelIndex: excelData.rows.indexOf(row) });
+    } else {
+      setEditing(row);
+    }
+    setForm({ ...row });
+    setOpen(true);
   };
 
   const handleSave = () => {
-    const payload = {
-      ...form,
-      id: editingId || Math.max(0, ...equipos.map((item) => item.id)) + 1,
-      usuarioAsignado: form.usuarioAsignado ? Number(form.usuarioAsignado) : null,
-    };
-
-    if (editingId) {
-      dispatch(updateEquipo(payload));
+    if (excelData && editingRow?._excelIndex !== undefined) {
+      const updatedRows = [...excelData.rows];
+      updatedRows[editingRow._excelIndex] = { ...form };
+      setExcelData({ ...excelData, rows: updatedRows });
+    } else if (editingRow) {
+      dispatch(updateEquipo({ ...form, id: editingRow.id }));
     } else {
-      dispatch(addEquipo(payload));
+      const newId = Math.max(0, ...equiposRedux.map((e) => e.id || 0)) + 1;
+      dispatch(addEquipo({ ...form, id: newId }));
     }
-    handleClose();
+    setOpen(false);
   };
 
-  const handleDelete = (id) => {
-    if (window.confirm('¿Eliminar este equipo?')) dispatch(deleteEquipo(id));
-  };
-
-  const handleExportExcel = () => {
-    exportEquiposExcel(equipos);
-  };
-
-  const handleExportPDF = () => {
-    exportEquiposPDF(equipos);
-  };
-
-  const handleImportExcel = async (file) => {
-    setIsImporting(true);
-    setImportMessage(null);
-    try {
-      const equiposImportados = await importEquiposExcel(file);
-      equiposImportados.forEach(equipo => {
-        dispatch(addEquipo(equipo));
-      });
-      setImportMessage({
-        type: 'success',
-        text: `Se importaron ${equiposImportados.length} equipos correctamente`,
-      });
-      setTimeout(() => setImportMessage(null), 3000);
-    } catch (error) {
-      setImportMessage({
-        type: 'error',
-        text: error.message,
-      });
-    } finally {
-      setIsImporting(false);
+  const handleDelete = (row) => {
+    if (!window.confirm('¿Eliminar este registro?')) return;
+    if (excelData) {
+      const updatedRows = excelData.rows.filter((r) => r !== row);
+      setExcelData({ ...excelData, rows: updatedRows });
+    } else {
+      dispatch(deleteEquipo(row.id));
     }
   };
 
-  // Columnas para la tabla
-  const columns = [
-    {
-      key: 'codigoPatrimonial',
-      label: 'Código',
-      width: '120px',
-      searchable: true,
-    },
-    {
-      key: 'nombre',
-      label: 'Nombre',
-      width: '150px',
-      searchable: true,
-    },
-    {
-      key: 'tipo',
-      label: 'Tipo',
-      width: '100px',
-      type: 'chip',
-      chipColor: (value) => {
-        const colors = {
-          'PC': 'primary',
-          'Monitor/Pantalla': 'info',
-          'Teclado': 'warning',
-          'Impresora': 'success',
-          'Proyector': 'secondary',
-        };
-        return colors[value] || 'default';
-      },
-    },
-    {
-      key: 'marca',
-      label: 'Marca',
-      width: '100px',
-    },
-    {
-      key: 'modelo',
-      label: 'Modelo',
-      width: '120px',
-    },
-    {
-      key: 'estado',
-      label: 'Estado',
-      width: '120px',
-      type: 'chip',
-      chipColor: (value) => {
-        const colors = {
-          'En uso': 'success',
-          'En almacén': 'warning',
-          'En mantenimiento': 'error',
-          'Formateado': 'info',
-          'Retirado': 'default',
-          'Dado de baja': 'default',
-        };
-        return colors[value] || 'default';
-      },
-    },
-    {
-      key: 'sede',
-      label: 'Sede',
-      width: '80px',
-    },
-    {
-      key: 'area',
-      label: 'Área',
-      width: '120px',
-    },
-    {
-      key: 'usuarioAsignado',
-      label: 'Usuario',
-      width: '150px',
-      render: (value) => {
-        if (!value) return '-';
-        const usuario = usuarios.find(u => u.id === value);
-        return usuario ? usuario.nombre : `ID: ${value}`;
-      },
-    },
-    {
-      key: 'fechaAdquisicion',
-      label: 'Adquisición',
-      width: '100px',
-      type: 'date',
-    },
-  ];
-
+  // ─────────────────────────────────────────────────────────────────────────────
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      {/* Cabecera */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Box>
-          <Typography variant="h5" fontWeight={700} gutterBottom>
+          <Typography variant="h5" fontWeight={700}>
             Gestión de Equipos
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Administra el inventario de equipos tecnológicos
+            {excelData
+              ? `Mostrando: ${excelData.filename}`
+              : 'Inventario base del sistema'}
           </Typography>
         </Box>
-        <ExportImportButtons
-          onExportExcel={handleExportExcel}
-          onExportPDF={handleExportPDF}
-          onImportExcel={handleImportExcel}
-          isLoading={isImporting}
-        />
+
+        <Stack direction="row" spacing={1} flexWrap="wrap">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            style={{ display: 'none' }}
+            onChange={handleFileChange}
+          />
+
+          <Tooltip title={excelData ? 'Carga un nuevo Excel (borra el actual automáticamente)' : 'Cargar archivo Excel'}>
+            <Button
+              variant="contained"
+              startIcon={<FileUpload />}
+              onClick={() => fileInputRef.current?.click()}
+              color={excelData ? 'warning' : 'primary'}
+            >
+              {excelData ? 'Reemplazar Excel' : 'Cargar Excel'}
+            </Button>
+          </Tooltip>
+
+          {excelData && (
+            <Tooltip title="Volver al inventario base">
+              <Button variant="outlined" color="error" startIcon={<Close />} onClick={handleClearExcel}>
+                Limpiar
+              </Button>
+            </Tooltip>
+          )}
+
+          <Button
+            variant="outlined"
+            startIcon={<FileDownload />}
+            onClick={handleExport}
+            disabled={!activeData.length}
+          >
+            Exportar
+          </Button>
+
+          {!excelData && (
+            <Button variant="outlined" startIcon={<Add />} onClick={handleOpenAdd}>
+              Nuevo
+            </Button>
+          )}
+        </Stack>
       </Box>
 
-      {importMessage && (
-        <Alert severity={importMessage.type} sx={{ mb: 2 }}>
-          {importMessage.text}
-        </Alert>
+      {loading && <LinearProgress sx={{ mb: 2, borderRadius: 1 }} />}
+
+      <Fade in={!!message}>
+        <Box sx={{ mb: message ? 2 : 0 }}>
+          {message && (
+            <Alert severity={message.type} onClose={() => setMessage(null)} sx={{ borderRadius: 2 }}>
+              {message.text}
+            </Alert>
+          )}
+        </Box>
+      </Fade>
+
+      {excelData && (
+        <Paper
+          variant="outlined"
+          sx={{
+            mb: 2, p: 1.5,
+            display: 'flex', alignItems: 'center', gap: 1.5,
+            borderColor: 'success.light', bgcolor: 'success.50', borderRadius: 2,
+          }}
+        >
+          <TableChart color="success" fontSize="small" />
+          <Typography variant="body2" color="success.dark" fontWeight={500}>
+            <strong>{excelData.filename}</strong>
+            {' — '}{excelData.rows.length} registros · {excelData.columns.length} columnas
+          </Typography>
+          <Chip
+            label="Al cargar otro Excel este se reemplaza"
+            size="small"
+            color="warning"
+            sx={{ ml: 'auto', fontSize: '0.65rem' }}
+          />
+        </Paper>
       )}
 
-      <DataTable
-        data={equipos}
-        columns={columns}
-        title="Equipos"
-        onAdd={() => handleOpen(null)}
-        onEdit={handleOpen}
-        onDelete={handleDelete}
-        searchPlaceholder="Buscar equipos por código, nombre, marca..."
-      />
+      {/* Tabla */}
+      <Paper elevation={1} sx={{ borderRadius: 2, overflow: 'hidden' }}>
+        <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+          <TextField
+            size="small"
+            placeholder="Buscar en todos los campos..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+            sx={{ flex: 1, maxWidth: 420 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search fontSize="small" sx={{ color: 'text.disabled' }} />
+                </InputAdornment>
+              ),
+              endAdornment: search ? (
+                <InputAdornment position="end">
+                  <IconButton size="small" onClick={() => setSearch('')}>
+                    <Close fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ) : null,
+            }}
+          />
+          <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto', whiteSpace: 'nowrap' }}>
+            {filteredData.length !== activeData.length
+              ? `${filteredData.length} de ${activeData.length} registros`
+              : `${activeData.length} registros`}
+          </Typography>
+        </Box>
 
-      {/* Modal de formulario */}
-      <Dialog open={open} onClose={handleClose} fullWidth maxWidth="md">
-        <DialogTitle>
-          {editingId ? 'Editar equipo' : 'Nuevo equipo'}
-        </DialogTitle>
+        <TableContainer sx={{ maxHeight: 'calc(100vh - 360px)' }}>
+          <Table stickyHeader size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 700, bgcolor: 'grey.50', width: 44 }}>#</TableCell>
+                {activeColumns.map((col) => (
+                  <TableCell
+                    key={col.key}
+                    sx={{ fontWeight: 700, bgcolor: 'grey.50', whiteSpace: 'nowrap', fontSize: '0.78rem' }}
+                  >
+                    {col.label}
+                  </TableCell>
+                ))}
+                {/* ✅ Acciones SIEMPRE visible — sin condición */}
+                <TableCell sx={{ fontWeight: 700, bgcolor: 'grey.50', width: 90, textAlign: 'center' }}>
+                  Acciones
+                </TableCell>
+              </TableRow>
+            </TableHead>
+
+            <TableBody>
+              {paginated.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={activeColumns.length + 2}
+                    align="center"
+                    sx={{ py: 8, color: 'text.disabled' }}
+                  >
+                    {activeData.length === 0
+                      ? 'No hay datos. Carga un archivo Excel con el botón de arriba.'
+                      : 'Sin resultados para la búsqueda.'}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                paginated.map((row, idx) => (
+                  <TableRow key={idx} hover sx={{ '&:last-child td': { border: 0 } }}>
+                    <TableCell sx={{ color: 'text.disabled', fontSize: '0.72rem' }}>
+                      {page * rowsPerPage + idx + 1}
+                    </TableCell>
+
+                    {activeColumns.map((col) => {
+                      const value = row[col.key];
+                      const displayVal = value !== '' && value != null ? String(value) : '—';
+
+                      return (
+                        <TableCell
+                          key={col.key}
+                          sx={{
+                            fontSize: '0.78rem',
+                            whiteSpace: 'nowrap',
+                            maxWidth: 240,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {looksLikeStatus(col.key) && value ? (
+                            <Chip
+                              label={displayVal}
+                              size="small"
+                              color={getChipColor(value)}
+                              sx={{ fontSize: '0.68rem', height: 20 }}
+                            />
+                          ) : (
+                            <Tooltip title={displayVal} placement="top-start" enterDelay={700} disableHoverListener={displayVal.length < 30}>
+                              <span>{displayVal}</span>
+                            </Tooltip>
+                          )}
+                        </TableCell>
+                      );
+                    })}
+
+                    {/* ✅ Acciones SIEMPRE visible — sin condición */}
+                    <TableCell align="center">
+                      <Stack direction="row" spacing={0.5} justifyContent="center">
+                        <Tooltip title="Editar registro" placement="top">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleOpenEdit(row)}
+                            sx={{
+                              color: 'primary.main',
+                              bgcolor: 'primary.50',
+                              '&:hover': { bgcolor: 'primary.100' },
+                              borderRadius: 1,
+                            }}
+                          >
+                            <Edit fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Eliminar registro" placement="top">
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleDelete(row)}
+                            sx={{
+                              bgcolor: 'error.50',
+                              '&:hover': { bgcolor: 'error.100' },
+                              borderRadius: 1,
+                            }}
+                          >
+                            <Delete fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        <TablePagination
+          component="div"
+          count={filteredData.length}
+          page={page}
+          onPageChange={(_, p) => setPage(p)}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={(e) => { setRowsPerPage(+e.target.value); setPage(0); }}
+          rowsPerPageOptions={[10, 25, 50, 100]}
+          labelRowsPerPage="Filas:"
+          labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
+        />
+      </Paper>
+
+      {/* Modal CRUD */}
+      <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>{editingRow ? 'Editar equipo' : 'Nuevo equipo'}</DialogTitle>
         <DialogContent>
-          <Stack spacing={3} sx={{ mt: 1 }}>
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  name="codigoPatrimonial"
-                  label="Código Patrimonial"
-                  value={form.codigoPatrimonial}
-                  onChange={handleChange}
-                  fullWidth
-                  required
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  name="nombre"
-                  label="Nombre"
-                  value={form.nombre}
-                  onChange={handleChange}
-                  fullWidth
-                  required
-                />
-              </Grid>
-            </Grid>
-
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={4}>
-                <TextField
-                  select
-                  name="tipo"
-                  label="Tipo"
-                  value={form.tipo}
-                  onChange={handleChange}
-                  fullWidth
-                  required
-                >
-                  {TIPOS_EQUIPOS.map((tipo) => (
-                    <MenuItem key={tipo} value={tipo}>{tipo}</MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <TextField
-                  name="marca"
-                  label="Marca"
-                  value={form.marca}
-                  onChange={handleChange}
-                  fullWidth
-                  required
-                />
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <TextField
-                  name="modelo"
-                  label="Modelo"
-                  value={form.modelo}
-                  onChange={handleChange}
-                  fullWidth
-                  required
-                />
-              </Grid>
-            </Grid>
-
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  name="serie"
-                  label="Número de Serie"
-                  value={form.serie}
-                  onChange={handleChange}
-                  fullWidth
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  select
-                  name="estado"
-                  label="Estado"
-                  value={form.estado}
-                  onChange={handleChange}
-                  fullWidth
-                  required
-                >
-                  {ESTADOS_EQUIPOS.map((estado) => (
-                    <MenuItem key={estado} value={estado}>{estado}</MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-            </Grid>
-
-            {/* Campos técnicos - solo para PCs */}
-            {form.tipo === 'PC' && (
-              <>
-                <Typography variant="subtitle2" fontWeight={600} sx={{ mt: 2 }}>
-                  Especificaciones Técnicas
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      name="procesador"
-                      label="Procesador"
-                      value={form.procesador}
-                      onChange={handleChange}
-                      fullWidth
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      name="ram"
-                      label="Memoria RAM"
-                      value={form.ram}
-                      onChange={handleChange}
-                      fullWidth
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      name="disco"
-                      label="Disco Duro"
-                      value={form.disco}
-                      onChange={handleChange}
-                      fullWidth
-                    />
-                  </Grid>
-                </Grid>
-                <TextField
-                  name="sistemaOperativo"
-                  label="Sistema Operativo"
-                  value={form.sistemaOperativo}
-                  onChange={handleChange}
-                  fullWidth
-                  sx={{ mt: 2 }}
-                />
-              </>
-            )}
-
-            <Typography variant="subtitle2" fontWeight={600} sx={{ mt: 2 }}>
-              Ubicación y Asignación
-            </Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  select
-                  name="sede"
-                  label="Sede"
-                  value={form.sede}
-                  onChange={(e) => {
-                    handleChange(e);
-                    // Reset area when sede changes
-                    setForm(prev => ({ ...prev, area: '' }));
-                  }}
-                  fullWidth
-                  required
-                >
-                  {SEDES.map((sede) => (
-                    <MenuItem key={sede} value={sede}>{sede}</MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  select
-                  name="area"
-                  label="Área"
-                  value={form.area}
-                  onChange={handleChange}
-                  fullWidth
-                  disabled={!form.sede}
-                >
-                  {form.sede && AREAS[form.sede]?.map((area) => (
-                    <MenuItem key={area} value={area}>{area}</MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-            </Grid>
-
-            <TextField
-              select
-              name="usuarioAsignado"
-              label="Usuario Asignado"
-              value={form.usuarioAsignado || ''}
-              onChange={handleChange}
-              fullWidth
-            >
-              <MenuItem value="">Sin asignar</MenuItem>
-              {usuarios
-                .filter(u => u.sede === form.sede)
-                .map((usuario) => (
-                <MenuItem key={usuario.id} value={usuario.id}>
-                  {usuario.nombre} ({usuario.email})
-                </MenuItem>
-              ))}
-            </TextField>
-
-            <TextField
-              name="fechaAdquisicion"
-              label="Fecha de Adquisición"
-              type="date"
-              value={form.fechaAdquisicion}
-              onChange={handleChange}
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-            />
-
-            <TextField
-              name="observaciones"
-              label="Observaciones"
-              value={form.observaciones}
-              onChange={handleChange}
-              fullWidth
-              multiline
-              rows={3}
-            />
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            {(excelData ? activeColumns : BASE_COLUMNS).map((col) => (
+              <TextField
+                key={col.key}
+                label={col.label}
+                value={form[col.key] ?? ''}
+                onChange={(e) => setForm((p) => ({ ...p, [col.key]: e.target.value }))}
+                fullWidth
+                size="small"
+              />
+            ))}
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleClose}>Cancelar</Button>
+          <Button onClick={() => setOpen(false)}>Cancelar</Button>
           <Button variant="contained" onClick={handleSave}>
-            {editingId ? 'Actualizar' : 'Crear'}
+            {editingRow ? 'Actualizar' : 'Crear'}
           </Button>
         </DialogActions>
       </Dialog>

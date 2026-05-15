@@ -14,23 +14,16 @@ export const exportEquiposExcel = (equipos, nombreArchivo = 'inventario-equipos'
 
   // Preparar datos para Excel
   const datosExcel = equipos.map(equipo => ({
-    'Código Patrimonial': equipo.codigoPatrimonial,
-    'Nombre': equipo.nombre,
-    'Tipo': equipo.tipo,
-    'Marca': equipo.marca,
-    'Modelo': equipo.modelo,
-    'Número de Serie': equipo.serie,
-    'Procesador': equipo.procesador || '-',
-    'RAM': equipo.ram || '-',
-    'Disco': equipo.disco || '-',
-    'Sistema Operativo': equipo.sistemaOperativo || '-',
-    'Estado': equipo.estado,
-    'Sede': equipo.sede,
-    'Área': equipo.area,
-    'Usuario Asignado': equipo.usuarioAsignado || '-',
-    'Observaciones': equipo.observaciones,
-    'Fecha de Adquisición': equipo.fechaAdquisicion,
-  }));
+      'Código Patrimonial': equipo.codigoPatrimonial,
+      'Marca': equipo.marca,
+      'Modelo de Sistemas': equipo.modeloSistemas,
+      'Generación': equipo.generacion,
+      'Procesador': equipo.procesador || '-',
+      'RAM': equipo.ram || '-',
+      'Sistema Operativo': equipo.sistemaOperativo || '-',
+      'Estado Sistema Operativo': equipo.estadoSO || '-',
+      'Office': equipo.office || '-',
+    }));
 
   // Crear libro de trabajo
   const libro = XLSX.utils.book_new();
@@ -38,23 +31,16 @@ export const exportEquiposExcel = (equipos, nombreArchivo = 'inventario-equipos'
 
   // Ajustar ancho de columnas
   hoja['!cols'] = [
-    { wch: 18 }, // Código Patrimonial
-    { wch: 20 }, // Nombre
-    { wch: 15 }, // Tipo
-    { wch: 12 }, // Marca
-    { wch: 15 }, // Modelo
-    { wch: 15 }, // Número de Serie
-    { wch: 20 }, // Procesador
-    { wch: 12 }, // RAM
-    { wch: 12 }, // Disco
-    { wch: 20 }, // Sistema Operativo
-    { wch: 15 }, // Estado
-    { wch: 12 }, // Sede
-    { wch: 15 }, // Área
-    { wch: 15 }, // Usuario Asignado
-    { wch: 30 }, // Observaciones
-    { wch: 15 }, // Fecha de Adquisición
-  ];
+      { wch: 18 }, // Código Patrimonial
+      { wch: 12 }, // Marca
+      { wch: 18 }, // Modelo de Sistemas
+      { wch: 15 }, // Generación
+      { wch: 20 }, // Procesador
+      { wch: 12 }, // RAM
+      { wch: 18 }, // Sistema Operativo
+      { wch: 20 }, // Estado Sistema Operativo
+      { wch: 12 }, // Office
+    ];
 
   XLSX.utils.book_append_sheet(libro, hoja, 'Equipos');
   XLSX.writeFile(libro, `${nombreArchivo}-${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -173,25 +159,17 @@ export const importEquiposExcel = (archivo) => {
         const equipos = XLSX.utils.sheet_to_json(hoja);
 
         // Mapear columnas del Excel al formato esperado
-        const equiposFormateados = equipos.map((eq, index) => ({
-          id: Math.max(0, ...equipos.map(e => e.id || 0)) + index + 1,
-          codigoPatrimonial: eq['Código Patrimonial'] || '',
-          nombre: eq['Nombre'] || '',
-          tipo: eq['Tipo'] || 'PC',
-          marca: eq['Marca'] || '',
-          modelo: eq['Modelo'] || '',
-          serie: eq['Número de Serie'] || '',
-          procesador: eq['Procesador'] || null,
-          ram: eq['RAM'] || null,
-          disco: eq['Disco'] || null,
-          sistemaOperativo: eq['Sistema Operativo'] || null,
-          estado: eq['Estado'] || 'En almacén',
-          sede: eq['Sede'] || 'Garzón',
-          area: eq['Área'] || '',
-          usuarioAsignado: eq['Usuario Asignado'] ? Number(eq['Usuario Asignado']) : null,
-          observaciones: eq['Observaciones'] || '',
-          fechaAdquisicion: eq['Fecha de Adquisición'] || '',
-        }));
+        const equiposFormateados = equipos.map((eq) => ({
+            codigoPatrimonial: eq['Código Patrimonial'] || '',
+            marca: eq['Marca'] || '',
+            modeloSistemas: eq['Modelo de Sistemas'] || '',
+            generacion: eq['Generación'] || '',
+            procesador: eq['Procesador'] || '',
+            ram: eq['RAM'] || '',
+            sistemaOperativo: eq['Sistema Operativo'] || '',
+            estadoSO: eq['Estado Sistema Operativo'] || '',
+            office: eq['Office'] || '',
+          }));
 
         resolve(equiposFormateados);
       } catch (error) {
@@ -221,16 +199,16 @@ export const exportTodoExcel = (equipos, mantenimientos, movimientos, nombreArch
   // Hoja de Equipos
   if (equipos && equipos.length > 0) {
     const datosEquipos = equipos.map(equipo => ({
-      'Código Patrimonial': equipo.codigoPatrimonial,
-      'Nombre': equipo.nombre,
-      'Tipo': equipo.tipo,
-      'Marca': equipo.marca,
-      'Modelo': equipo.modelo,
-      'Estado': equipo.estado,
-      'Sede': equipo.sede,
-      'Área': equipo.area,
-      'Fecha de Adquisición': equipo.fechaAdquisicion,
-    }));
+        'Código Patrimonial': equipo.codigoPatrimonial,
+        'Marca': equipo.marca,
+        'Modelo de Sistemas': equipo.modeloSistemas,
+        'Generación': equipo.generacion,
+        'Procesador': equipo.procesador,
+        'RAM': equipo.ram,
+        'Sistema Operativo': equipo.sistemaOperativo,
+        'Estado Sistema Operativo': equipo.estadoSO,
+        'Office': equipo.office,
+      }));
     const hojaEquipos = XLSX.utils.json_to_sheet(datosEquipos);
     XLSX.utils.book_append_sheet(libro, hojaEquipos, 'Equipos');
   }
