@@ -24,7 +24,7 @@ import {
   Brightness7,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { logout } from '../../store/slices/authSlice';
+import { logout } from '../../store/slices/authSlice.js';
 import { DRAWER_WIDTH } from './Sidebar';
 
 const PAGE_TITLES = {

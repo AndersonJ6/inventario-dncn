@@ -1,5 +1,4 @@
 import * as XLSX from 'xlsx';
-import { saveAs } from 'file-saver';
 
 /**
  * Exporta equipos a archivo Excel

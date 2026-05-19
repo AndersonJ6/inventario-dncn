@@ -23,8 +23,9 @@ import {
   Person,
   Lock,
 } from '@mui/icons-material';
-import { loginSuccess } from '../store/slices/authSlice';
-import { mockUsuarios } from '../data/mockData';
+import { loginSuccess } from '../store/slices/authSlice.js';
+import { loginWithMCP } from '../services/authService.js';
+import { mockUsuarios } from '../data/mockData.js';
 
 // Usuarios demo con sus credenciales
 const DEMO_USERS = mockUsuarios.map((u) => ({
@@ -65,15 +66,44 @@ const Login = () => {
 
     setIsLoading(true);
 
-    // Simular delay de autenticación
-    await new Promise((r) => setTimeout(r, 800));
+    let usuario;
 
-    const usuario = DEMO_USERS.find(
-      (u) => u.email === form.email && u.password === form.password
-    );
+    try {
+      const remoteResult = await loginWithMCP(form.email, form.password);
+
+      if (remoteResult?.authenticated === true || remoteResult?.user) {
+        usuario = remoteResult.user || {
+          id: remoteResult.id ?? form.email,
+          nombre: remoteResult.nombre || remoteResult.name || form.email,
+          email: form.email,
+          rol: remoteResult.rol || remoteResult.role || 'visualizador',
+          sede: remoteResult.sede || 'Central',
+        };
+      } else {
+        throw new Error(remoteResult?.message || 'Credenciales incorrectas.');
+      }
+    } catch (error) {
+      const message = String(error.message || 'Error desconocido.');
+      const isNetworkError =
+        error instanceof TypeError ||
+        /failed to fetch|network error|timeout/i.test(message);
+      const unsupportedMethod = /Method not supported/i.test(message);
+
+      if (isNetworkError || unsupportedMethod) {
+        usuario = DEMO_USERS.find(
+          (u) => u.email === form.email && u.password === form.password
+        );
+      } else {
+        setLocalError(message);
+        setIsLoading(false);
+        return;
+      }
+    }
 
     if (!usuario) {
-      setLocalError('Credenciales incorrectas. Usa los accesos rápidos de prueba.');
+      setLocalError(
+        'Credenciales incorrectas. Usa los accesos rápidos de prueba o configura el método de autenticación MCP.'
+      );
       setIsLoading(false);
       return;
     }

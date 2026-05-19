@@ -1,12 +1,12 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import Layout from './components/layout/Layout';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import Equipos from './pages/Equipos';
-import Usuarios from './pages/Usuarios';
-import Mantenimiento from './pages/Mantenimiento';
-import Movimientos from './pages/Movimientos';
+import Layout from './components/layout/Layout.jsx';
+import Login from './pages/Login.jsx';
+import Dashboard from './pages/Dashboard.jsx';
+import Equipos from './pages/Equipos.jsx';
+import Usuarios from './pages/Usuarios.jsx';
+import Mantenimiento from './pages/Mantenimiento.jsx';
+import Movimientos from './pages/Movimientos.jsx';
 
 // Ruta protegida: verifica autenticación y rol
 const ProtectedRoute = ({ children, allowedRoles }) => {

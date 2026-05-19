@@ -24,14 +24,13 @@ import {
 } from '@mui/material';
 import {
   Search,
-  FilterList,
   MoreVert,
   Edit,
   Delete,
   Visibility,
   Add,
 } from '@mui/icons-material';
-import { SEDES, AREAS, ESTADOS_EQUIPOS, TIPOS_EQUIPOS } from '../../data/mockData';
+import { SEDES, AREAS, ESTADOS_EQUIPOS, TIPOS_EQUIPOS } from '../../data/mockData.js';
 
 const DataTable = ({
   data,
@@ -61,7 +60,10 @@ const DataTable = ({
   });
 
   // Combinar filtros externos e internos
-  const filters = { ...internalFilters, ...externalFilters };
+  const filters = useMemo(
+    () => ({ ...internalFilters, ...externalFilters }),
+    [internalFilters, externalFilters]
+  );
 
   // Datos filtrados y paginados
   const filteredData = useMemo(() => {

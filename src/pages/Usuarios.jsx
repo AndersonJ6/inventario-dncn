@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { addUsuario, updateUsuario, deleteUsuario } from '../store/slices/usuariosSlice';
+import { addUsuario, updateUsuario, deleteUsuario } from '../store/slices/usuariosSlice.js';
 import {
   Box,
   Button,

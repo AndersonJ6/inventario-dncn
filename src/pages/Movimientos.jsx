@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { addMovimiento, updateMovimiento, deleteMovimiento } from '../store/slices/movimientosSlice';
+import { addMovimiento, updateMovimiento, deleteMovimiento } from '../store/slices/movimientosSlice.js';
 import {
   Box,
   Button,
@@ -14,9 +14,8 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { Add } from '@mui/icons-material';
-import DataTable from '../components/cammon/DataTable';
-import ExportImportButtons from '../components/cammon/ExportImportButtons';
+import DataTable from '../components/cammon/DataTable.jsx';
+import ExportImportButtons from '../components/cammon/ExportImportButtons.jsx';
 import {
   exportMovimientosExcel,
 } from '../services/excelService';

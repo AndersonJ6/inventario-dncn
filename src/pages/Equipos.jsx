@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import {
   addEquipo, updateEquipo, deleteEquipo,
   setExcelData, clearExcelData, updateExcelRow, deleteExcelRow,
-} from '../store/slices/equiposSlice';
+} from '../store/slices/equiposSlice.js';
 import * as XLSX from 'xlsx';
 
 import {
@@ -102,8 +102,8 @@ const Equipos = () => {
 
   const fileInputRef = useRef(null);
 
-  const activeData    = excelData ? excelData.rows    : equiposRedux;
-  const activeColumns = excelData ? excelData.columns : BASE_COLUMNS;
+  const activeData = excelData?.rows ?? equiposRedux;
+  const activeColumns = excelData?.columns ?? BASE_COLUMNS;
 
   const filteredData = activeData.filter((row) =>
     activeColumns.some((col) =>
@@ -359,18 +359,12 @@ const Equipos = () => {
               ) : (
                 // FIX 2: idx se usa para calcular el índice real en activeData
                 paginated.map((row, idx) => {
-                  // Índice real dentro de filteredData (que puede estar filtrado y paginado)
                   const filteredIndex = page * rowsPerPage + idx;
-                  // Para operaciones sobre excelData.rows necesitamos el índice en activeData.
-                  // Si hay búsqueda activa, filteredData[filteredIndex] apunta a la fila correcta,
-                  // pero el índice en excelData.rows puede diferir. Lo resolvemos buscándolo una
-                  // sola vez de forma segura por referencia de objeto.
-                  const realIndex = excelData
-                    ? excelData.rows.indexOf(filteredData[filteredIndex])
-                    : filteredIndex;
+                  const realIndex = activeData.indexOf(filteredData[filteredIndex]);
+                  const rowKey = row.id != null ? row.id : realIndex;
 
                   return (
-                    <TableRow key={realIndex} hover sx={{ '&:last-child td': { border: 0 } }}>
+                    <TableRow key={rowKey} hover sx={{ '&:last-child td': { border: 0 } }}>
                       <TableCell sx={{ color: 'text.disabled', fontSize: '0.72rem' }}>
                         {filteredIndex + 1}
                       </TableCell>

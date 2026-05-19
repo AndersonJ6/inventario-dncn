@@ -1,20 +1,18 @@
 import { useMemo } from 'react';
 import { useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import {
-  Box, Grid, Card, CardContent, Typography, Chip, Avatar,
-  List, ListItem, ListItemText, ListItemAvatar, Divider,
+  Box, Grid, Card, CardContent, Typography, Avatar, Button,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
 } from '@mui/material';
-import { Build, Warning, CheckCircle, Inventory } from '@mui/icons-material';
-import ExportImportButtons from '../components/cammon/ExportImportButtons';
-import { exportTodoExcel }  from '../services/excelService';
-import { exportReportePDF } from '../services/pdfService';
+import { Add, Build, Warning, CheckCircle, Inventory } from '@mui/icons-material';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell, Legend,
+  ResponsiveContainer, PieChart, Pie, Cell, Legend, ComposedChart, Line,
 } from 'recharts';
 
 // ─── Paleta ───────────────────────────────────────────────────────────────────
-const PIE_COLORS = ['#1976d2', '#2e7d32', '#e65100', '#546e7a', '#7b1fa2', '#c62828'];
+const PIE_COLORS = ['#1976d2', '#90caf9', '#546e7a', '#2e7d32', '#ffc107', '#ab47bc'];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -59,14 +57,14 @@ const detectKeys = (columns) => {
 
 // ─── StatCard ─────────────────────────────────────────────────────────────────
 const StatCard = ({ icon, label, value, color, subtitle }) => (
-  <Card elevation={1} sx={{ borderRadius: 2, height: '100%' }}>
-    <CardContent sx={{ p: 2.5 }}>
+  <Card elevation={1} sx={{ borderRadius: 3, height: '100%', bgcolor: 'background.paper' }}>
+    <CardContent sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-        <Avatar sx={{ bgcolor: `${color}.light`, color: `${color}.dark`, width: 48, height: 48, borderRadius: 2 }}>
+        <Avatar sx={{ bgcolor: `${color}.light`, color: `${color}.dark`, width: 52, height: 52, borderRadius: 2 }}>
           {icon}
         </Avatar>
         <Box>
-          <Typography variant="h4" fontWeight={700} lineHeight={1.2}>{value}</Typography>
+          <Typography variant="h4" fontWeight={700} lineHeight={1.1}>{value}</Typography>
           <Typography variant="body2" fontWeight={600} color="text.primary">{label}</Typography>
           {subtitle && (
             <Typography variant="caption" color="text.secondary">{subtitle}</Typography>
@@ -79,16 +77,16 @@ const StatCard = ({ icon, label, value, color, subtitle }) => (
 
 // ─── MiniBarChart ─────────────────────────────────────────────────────────────
 const MiniBarChart = ({ data, dataKey = 'value', nameKey = 'name', title, color = '#1976d2' }) => (
-  <Card elevation={1} sx={{ borderRadius: 2 }}>
-    <CardContent sx={{ p: 2.5 }}>
+  <Card elevation={1} sx={{ borderRadius: 3, height: '100%', bgcolor: 'background.paper' }}>
+    <CardContent sx={{ p: 3 }}>
       <Typography variant="subtitle1" fontWeight={600} gutterBottom>{title}</Typography>
-      <ResponsiveContainer width="100%" height={220}>
-        <BarChart data={data} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
-          <XAxis dataKey={nameKey} tick={{ fontSize: 11 }} interval={0} angle={-20} textAnchor="end" height={40} />
+      <ResponsiveContainer width="100%" height={250}>
+        <BarChart data={data} margin={{ top: 10, right: 10, left: -24, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.08)" />
+          <XAxis dataKey={nameKey} tick={{ fontSize: 11 }} interval={0} angle={-25} textAnchor="end" height={48} />
           <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
-          <Tooltip contentStyle={{ borderRadius: 8, fontSize: 13 }} labelStyle={{ fontWeight: 600 }} />
-          <Bar dataKey={dataKey} fill={color} radius={[4, 4, 0, 0]} name="Cantidad" />
+          <Tooltip contentStyle={{ borderRadius: 10, fontSize: 13 }} labelStyle={{ fontWeight: 600 }} />
+          <Bar dataKey={dataKey} fill={color} radius={[6, 6, 0, 0]} name="Cantidad" />
         </BarChart>
       </ResponsiveContainer>
     </CardContent>
@@ -97,56 +95,75 @@ const MiniBarChart = ({ data, dataKey = 'value', nameKey = 'name', title, color 
 
 // ─── MiniPieChart ─────────────────────────────────────────────────────────────
 const MiniPieChart = ({ data, title }) => (
-  <Card elevation={1} sx={{ borderRadius: 2 }}>
-    <CardContent sx={{ p: 2.5 }}>
+  <Card elevation={1} sx={{ borderRadius: 3, height: '100%', bgcolor: 'background.paper' }}>
+    <CardContent sx={{ p: 3 }}>
       <Typography variant="subtitle1" fontWeight={600} gutterBottom>{title}</Typography>
-      <ResponsiveContainer width="100%" height={220}>
+      <ResponsiveContainer width="100%" height={260}>
         <PieChart>
-          <Pie data={data} cx="50%" cy="50%" innerRadius={50} outerRadius={80}
-            paddingAngle={3} dataKey="value" nameKey="name">
+          <Pie data={data} cx="50%" cy="50%" innerRadius={60} outerRadius={88}
+            paddingAngle={4} dataKey="value" nameKey="name">
             {data.map((_, i) => (
               <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
             ))}
           </Pie>
-          <Tooltip contentStyle={{ borderRadius: 8, fontSize: 13 }} />
-          <Legend iconType="circle" iconSize={10} wrapperStyle={{ fontSize: 12 }} />
+          <Tooltip contentStyle={{ borderRadius: 10, fontSize: 13 }} />
+          <Legend iconType="circle" iconSize={10} wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
         </PieChart>
       </ResponsiveContainer>
     </CardContent>
   </Card>
 );
 
+const AnalyticsChart = ({ data }) => (
+  <Card elevation={1} sx={{ borderRadius: 3, height: '100%', bgcolor: 'background.paper' }}>
+    <CardContent sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2, gap: 1.5 }}>
+        <Box>
+          <Typography variant="h6" fontWeight={700}>Analítica detallada</Typography>
+          <Typography variant="body2" color="text.secondary">Comparativo de mantenimiento mensual</Typography>
+        </Box>
+      </Box>
+      <Box sx={{ flex: 1, minHeight: 320 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={data} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="4 4" stroke="rgba(0,0,0,0.08)" />
+            <XAxis dataKey="month" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+            <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+            <Tooltip contentStyle={{ borderRadius: 10, fontSize: 13 }} />
+            <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+            <Bar dataKey="pendiente" barSize={20} fill="#1976d2" name="Pendientes" />
+            <Bar dataKey="completado" barSize={20} fill="#90caf9" name="Completados" />
+            <Line type="monotone" dataKey="total" stroke="#546e7a" strokeWidth={3} dot={{ r: 4 }} name="Total" />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </Box>
+    </CardContent>
+  </Card>
+);
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 const Dashboard = () => {
-  // ── Datos de Redux ──────────────────────────────────────────────────────────
   const equiposList    = useSelector((s) => s.equipos.list ?? []);
-  const excelData      = useSelector((s) => s.equipos.excelData);   // puede ser null
+  const excelData      = useSelector((s) => s.equipos.excelData);
   const mantenimientos = useSelector((s) => s.mantenimiento.list ?? []);
-  const movimientos    = useSelector((s) => s.movimientos.list ?? []);
-  const usuarios       = useSelector((s) => s.usuarios.list ?? []);
+  const navigate       = useNavigate();
 
-  // ── Fuente activa: Excel tiene prioridad sobre el inventario base ───────────
   const activeRows    = excelData ? excelData.rows    : equiposList;
-  const activeColumns = excelData ? excelData.columns : null; // null = modo base
+  const activeColumns = excelData ? excelData.columns : null;
   const isExcel       = !!excelData;
 
-  // ── Detectar qué columnas usar (modo Excel dinámico) ───────────────────────
   const detectedKeys = useMemo(() => {
     if (!isExcel || !activeColumns) return null;
     return detectKeys(activeColumns);
   }, [isExcel, activeColumns]);
 
-  // ── Claves efectivas según fuente ──────────────────────────────────────────
   const estadoKey = isExcel ? detectedKeys?.estadoKey : 'estado';
   const tipoKey   = isExcel ? detectedKeys?.tipoKey   : 'tipo';
   const sedeKey   = isExcel ? detectedKeys?.sedeKey   : 'sede';
   const marcaKey  = isExcel ? detectedKeys?.marcaKey  : 'marca';
 
-  // ── Stats de tarjetas superiores ──────────────────────────────────────────
   const stats = useMemo(() => {
     const total = activeRows.length;
-
-    // Modo base: usa campos conocidos
     if (!isExcel) {
       const enUso           = activeRows.filter((e) => e.estado === 'En uso').length;
       const enMantenimiento = activeRows.filter((e) => e.estado === 'En mantenimiento').length;
@@ -155,7 +172,6 @@ const Dashboard = () => {
       return { total, enUso, enMantenimiento, pendientes, pct };
     }
 
-    // Modo Excel: intenta leer estadoKey si existe
     if (estadoKey && columnHasValues(activeRows, estadoKey)) {
       const KEYWORDS_EN_USO  = ['activo', 'en uso', 'operativo', 'bueno', 'si', 'sí', 'yes'];
       const KEYWORDS_MANT    = ['mantenimiento', 'en mantenimiento', 'reparación', 'falla'];
@@ -165,43 +181,25 @@ const Dashboard = () => {
       return { total, enUso, enMantenimiento, pendientes: 0, pct };
     }
 
-    // Excel sin columna de estado reconocible
     return { total, enUso: 0, enMantenimiento: 0, pendientes: 0, pct: 0 };
   }, [activeRows, isExcel, estadoKey, mantenimientos]);
 
-  // ── Gráfico por estado ─────────────────────────────────────────────────────
-  const porEstado = useMemo(() => {
-    if (!estadoKey) return [];
-    return groupBy(activeRows, estadoKey);
-  }, [activeRows, estadoKey]);
-
-  // ── Gráfico por tipo ───────────────────────────────────────────────────────
   const porTipo = useMemo(() => {
     if (!tipoKey) return [];
-    return groupBy(activeRows, tipoKey);
+    return groupBy(activeRows, tipoKey).slice(0, 6);
   }, [activeRows, tipoKey]);
 
-  // ── Gráfico por sede ───────────────────────────────────────────────────────
   const porSede = useMemo(() => {
     if (!sedeKey) return [];
-    return groupBy(activeRows, sedeKey);
+    return groupBy(activeRows, sedeKey).slice(0, 6);
   }, [activeRows, sedeKey]);
 
-  // ── Gráfico por marca (solo Excel, modo dinámico) ──────────────────────────
-  const porMarca = useMemo(() => {
-    if (!isExcel || !marcaKey) return [];
-    return groupBy(activeRows, marcaKey).slice(0, 10); // top 10
-  }, [activeRows, isExcel, marcaKey]);
-
-  // ── Distribución dinámica: columnas categóricas del Excel ──────────────────
-  // Muestra hasta 2 columnas extra que no sean las ya usadas arriba
   const extraCharts = useMemo(() => {
     if (!isExcel || !activeColumns) return [];
     const usedKeys = [estadoKey, tipoKey, sedeKey, marcaKey].filter(Boolean);
     return activeColumns
       .filter((col) => {
         if (usedKeys.includes(col.key)) return false;
-        // Solo columnas con pocos valores únicos (categóricas)
         const uniq = new Set(activeRows.map((r) => r[col.key])).size;
         return uniq >= 2 && uniq <= 15 && columnHasValues(activeRows, col.key);
       })
@@ -209,47 +207,65 @@ const Dashboard = () => {
       .map((col) => ({ key: col.key, label: col.label, data: groupBy(activeRows, col.key) }));
   }, [isExcel, activeColumns, activeRows, estadoKey, tipoKey, sedeKey, marcaKey]);
 
-  // ── Últimos mantenimientos (solo modo base) ────────────────────────────────
-  const ultimosMantenimientos = useMemo(
-    () => [...mantenimientos].sort((a, b) => new Date(b.fecha) - new Date(a.fecha)).slice(0, 5),
-    [mantenimientos]
-  );
+  const maintenanceTimeline = useMemo(() => {
+    const timeline = {};
+    mantenimientos.forEach((m) => {
+      const date = new Date(m.fecha);
+      if (Number.isNaN(date)) return;
+      const month = date.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' });
+      const monthKey = date.toISOString().slice(0, 7);
+      if (!timeline[monthKey]) {
+        timeline[monthKey] = { month, monthKey, pendiente: 0, completado: 0, total: 0 };
+      }
+      const statusKey = m.estado === 'completado' ? 'completado' : 'pendiente';
+      timeline[monthKey][statusKey] += 1;
+      timeline[monthKey].total += 1;
+    });
+    return Object.values(timeline).sort((a, b) => a.monthKey.localeCompare(b.monthKey));
+  }, [mantenimientos]);
 
-  // ── Columnas del Excel para mostrar en tabla resumen ──────────────────────
-  const previewColumns = useMemo(() => {
-    if (!isExcel || !activeColumns) return [];
-    return activeColumns.slice(0, 6); // primeras 6 columnas
-  }, [isExcel, activeColumns]);
+  const detailTableRows = isExcel ? activeRows.slice(0, 6) : equiposList.slice(0, 6);
+  const detailTableColumns = isExcel
+    ? (activeColumns?.slice(0, 5) ?? [])
+    : [
+      { label: 'Código', key: 'codigoPatrimonial' },
+      { label: 'Marca', key: 'marca' },
+      { label: 'Modelo', key: 'modeloSistemas' },
+      { label: 'Procesador', key: 'procesador' },
+      { label: 'RAM', key: 'ram' },
+    ];
 
-  // ── Handlers exportar ─────────────────────────────────────────────────────
-  const handleExportExcel = () => exportTodoExcel(equiposList, mantenimientos, movimientos);
-  const handleExportPDF   = () => exportReportePDF(equiposList, mantenimientos, movimientos, stats);
+  const todayLabel = new Date().toLocaleDateString('es-ES', {
+    day: 'numeric', month: 'long', year: 'numeric',
+  });
 
-  // ─────────────────────────────────────────────────────────────────────────────
+  const handleNewEquipo = () => navigate('/equipos');
+
   return (
-    <Box>
-      {/* ── Cabecera ── */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Box>
-          <Typography variant="h5" fontWeight={700} gutterBottom>
-            Resumen general
+    <Box sx={{ pb: 4 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, flexWrap: 'wrap', gap: 2 }}>
+        <Box sx={{ minWidth: 250 }}>
+          <Typography variant="h5" fontWeight={800} gutterBottom>
+            Dashboard de inventario tecnológico
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 580 }}>
             {isExcel
-              ? `Mostrando datos del Excel: ${excelData.filename} — ${activeRows.length} registros`
-              : 'Estado actual del inventario tecnológico'}
+              ? `Mostrando datos del Excel: ${excelData.filename} — ${activeRows.length} registros cargados.`
+              : `Estado actual del inventario al ${todayLabel}. Datos clave de equipos, sedes y mantenimientos.`}
           </Typography>
         </Box>
-        <ExportImportButtons
-          onExportExcel={handleExportExcel}
-          onExportPDF={handleExportPDF}
-          hideImport={true}
-        />
+        <Button
+          variant="contained"
+          startIcon={<Add />}
+          onClick={handleNewEquipo}
+          sx={{ borderRadius: 3, textTransform: 'none', px: 4, py: 1.3 }}
+        >
+          + Nuevo Equipo
+        </Button>
       </Box>
 
-      {/* ── Tarjetas de stats ── */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={6} md={3}>
+        <Grid item xs={12} md={3}>
           <StatCard
             icon={<Inventory />}
             label="Total equipos"
@@ -258,16 +274,16 @@ const Dashboard = () => {
             subtitle={isExcel ? `Desde ${excelData.filename}` : 'En inventario'}
           />
         </Grid>
-        <Grid item xs={6} md={3}>
+        <Grid item xs={12} md={3}>
           <StatCard
             icon={<CheckCircle />}
-            label={isExcel && estadoKey ? `Activos (col. ${estadoKey})` : 'En uso'}
+            label={isExcel && estadoKey ? `Activos (${estadoKey})` : 'En uso'}
             value={stats.enUso}
             color="success"
             subtitle={stats.total > 0 ? `${stats.pct}% del total` : '—'}
           />
         </Grid>
-        <Grid item xs={6} md={3}>
+        <Grid item xs={12} md={3}>
           <StatCard
             icon={<Build />}
             label="En mantenimiento"
@@ -276,71 +292,112 @@ const Dashboard = () => {
             subtitle="Fuera de servicio"
           />
         </Grid>
-        <Grid item xs={6} md={3}>
+        <Grid item xs={12} md={3}>
           <StatCard
             icon={<Warning />}
             label="Mantenimientos pendientes"
             value={stats.pendientes}
             color="error"
-            subtitle={isExcel ? 'Del inventario base' : 'Requieren atención'}
+            subtitle={isExcel ? 'Datos desde la hoja' : 'Requieren atención'}
           />
         </Grid>
       </Grid>
 
-      {/* ── Gráficos principales ── */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-
-        {/* Estado */}
-        {porEstado.length > 0 && (
-          <Grid item xs={12} md={estadoKey && tipoKey ? 5 : 12}>
-            <MiniPieChart
-              data={porEstado}
-              title={isExcel && estadoKey ? `Distribución por "${estadoKey}"` : 'Estado del parque'}
-            />
+        <Grid item xs={12} lg={4}>
+          <Grid container spacing={2} sx={{ height: '100%' }}>
+            <Grid item xs={12} sx={{ height: { xs: 'auto', lg: '50%' } }}>
+              {porSede.length > 0 ? (
+                <MiniPieChart
+                  data={porSede}
+                  title={isExcel && sedeKey ? `Distribución por ${sedeKey}` : 'Distribución por sede'}
+                />
+              ) : (
+                <Card elevation={1} sx={{ borderRadius: 3, height: '100%', bgcolor: 'background.paper' }}>
+                  <CardContent sx={{ p: 3 }}>
+                    <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                      Distribución por sede
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      No hay datos disponibles para esta vista.
+                    </Typography>
+                  </CardContent>
+                </Card>
+              )}
+            </Grid>
+            <Grid item xs={12} sx={{ height: { xs: 'auto', lg: '50%' } }}>
+              {porTipo.length > 0 ? (
+                <MiniBarChart
+                  data={porTipo}
+                  nameKey="name"
+                  title={isExcel && tipoKey ? `Equipos por ${tipoKey}` : 'Equipos por tipo'}
+                  color="#1976d2"
+                />
+              ) : (
+                <Card elevation={1} sx={{ borderRadius: 3, height: '100%', bgcolor: 'background.paper' }}>
+                  <CardContent sx={{ p: 3 }}>
+                    <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                      Equipos por tipo
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      No hay datos suficientes para mostrar este gráfico.
+                    </Typography>
+                  </CardContent>
+                </Card>
+              )}
+            </Grid>
           </Grid>
-        )}
+        </Grid>
 
-        {/* Tipo */}
-        {porTipo.length > 0 && (
-          <Grid item xs={12} md={estadoKey && tipoKey ? 7 : 12}>
-            <MiniBarChart
-              data={porTipo}
-              nameKey="name"
-              title={isExcel && tipoKey ? `Equipos por "${tipoKey}"` : 'Equipos por tipo'}
-              color="#1976d2"
-            />
-          </Grid>
-        )}
+        <Grid item xs={12} lg={8}>
+          <AnalyticsChart data={maintenanceTimeline.length > 0 ? maintenanceTimeline : [{ month: 'Sin datos', pendiente: 0, completado: 0, total: 0 }]} />
+        </Grid>
       </Grid>
 
-      {/* ── Sede y Marca ── */}
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        {porSede.length > 0 && (
-          <Grid item xs={12} md={porMarca.length > 0 ? 6 : 12}>
-            <MiniBarChart
-              data={porSede}
-              nameKey="name"
-              title={isExcel && sedeKey ? `Equipos por "${sedeKey}"` : 'Equipos por sede'}
-              color="#2e7d32"
-            />
-          </Grid>
-        )}
-        {porMarca.length > 0 && (
-          <Grid item xs={12} md={porSede.length > 0 ? 6 : 12}>
-            <MiniBarChart
-              data={porMarca}
-              nameKey="name"
-              title={`Top marcas (col. "${marcaKey}")`}
-              color="#7b1fa2"
-            />
-          </Grid>
-        )}
-      </Grid>
+      <Card elevation={1} sx={{ borderRadius: 3, mb: 3, bgcolor: 'background.paper' }}>
+        <CardContent sx={{ p: 3 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+            <Box>
+              <Typography variant="h6" fontWeight={700}>Tabla de activos</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Vista detallada de los equipos más relevantes del inventario.
+              </Typography>
+            </Box>
+            <Typography variant="caption" color="text.secondary">
+              {detailTableRows.length} filas mostradas
+            </Typography>
+          </Box>
 
-      {/* ── Columnas categóricas extra del Excel ── */}
+          <TableContainer component={Paper} sx={{ boxShadow: 'none' }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  {detailTableColumns.map((column) => (
+                    <TableCell key={column.key} sx={{ fontWeight: 700, color: 'text.primary' }}>
+                      {column.label}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {detailTableRows.map((row, rowIndex) => (
+                  <TableRow key={row.id ?? rowIndex} hover>
+                    {detailTableColumns.map((column) => (
+                      <TableCell key={`${rowIndex}-${column.key}`} sx={{ fontSize: '0.9rem' }}>
+                        {row[column.key] !== '' && row[column.key] != null ? String(row[column.key]) : '—'}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </CardContent>
+      </Card>
+
       {extraCharts.length > 0 && (
         <>
-          <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
+          <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>
             Otras distribuciones detectadas
           </Typography>
           <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -349,189 +406,11 @@ const Dashboard = () => {
                 <MiniBarChart
                   data={chart.data}
                   nameKey="name"
-                  title={`Por "${chart.label}"`}
+                  title={`Por ${chart.label}`}
                   color="#e65100"
                 />
               </Grid>
             ))}
-          </Grid>
-        </>
-      )}
-
-      {/* ── Preview tabla Excel (primeras filas) ── */}
-      {isExcel && previewColumns.length > 0 && (
-        <>
-          <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
-            Vista previa del Excel ({Math.min(5, activeRows.length)} de {activeRows.length} filas)
-          </Typography>
-          <Card elevation={1} sx={{ borderRadius: 2, mb: 3, overflow: 'auto' }}>
-            <CardContent sx={{ p: 0 }}>
-              <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                <Box component="thead">
-                  <Box component="tr" sx={{ bgcolor: 'grey.100' }}>
-                    {previewColumns.map((col) => (
-                      <Box
-                        component="th"
-                        key={col.key}
-                        sx={{ p: 1.5, textAlign: 'left', fontWeight: 700, whiteSpace: 'nowrap', borderBottom: '2px solid', borderColor: 'divider' }}
-                      >
-                        {col.label}
-                      </Box>
-                    ))}
-                    {activeColumns.length > 6 && (
-                      <Box component="th" sx={{ p: 1.5, color: 'text.disabled', borderBottom: '2px solid', borderColor: 'divider' }}>
-                        +{activeColumns.length - 6} columnas más
-                      </Box>
-                    )}
-                  </Box>
-                </Box>
-                <Box component="tbody">
-                  {activeRows.slice(0, 5).map((row, i) => (
-                    <Box
-                      component="tr"
-                      key={i}
-                      sx={{ '&:hover': { bgcolor: 'action.hover' }, borderBottom: '1px solid', borderColor: 'divider' }}
-                    >
-                      {previewColumns.map((col) => (
-                        <Box
-                          component="td"
-                          key={col.key}
-                          sx={{ p: 1.5, whiteSpace: 'nowrap', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}
-                        >
-                          {row[col.key] !== '' && row[col.key] != null ? String(row[col.key]) : '—'}
-                        </Box>
-                      ))}
-                      {activeColumns.length > 6 && <Box component="td" sx={{ p: 1.5, color: 'text.disabled' }}>…</Box>}
-                    </Box>
-                  ))}
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </>
-      )}
-
-      {/* ── Sección solo modo base: mantenimientos + usuarios ── */}
-      {!isExcel && (
-        <>
-          <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
-            Distribución por sede
-          </Typography>
-          <Grid container spacing={2} sx={{ mb: 3 }}>
-            {porSede.map((item) => {
-              const sedeEquipos = equiposList.filter((e) => e.sede === item.name);
-              const enUso = sedeEquipos.filter((e) => e.estado === 'En uso').length;
-              const enMant = sedeEquipos.filter((e) => e.estado === 'En mantenimiento').length;
-              return (
-                <Grid item xs={12} md={6} key={item.name}>
-                  <Card elevation={1} sx={{ borderRadius: 2 }}>
-                    <CardContent sx={{ p: 2.5 }}>
-                      <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-                        Sede {item.name}
-                      </Typography>
-                      <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-                        <Box>
-                          <Typography variant="h5" fontWeight={700} color="primary.main">{item.value}</Typography>
-                          <Typography variant="caption" color="text.secondary">Total equipos</Typography>
-                        </Box>
-                        <Box>
-                          <Typography variant="h5" fontWeight={700} color="success.main">{enUso}</Typography>
-                          <Typography variant="caption" color="text.secondary">En uso</Typography>
-                        </Box>
-                        <Box>
-                          <Typography variant="h5" fontWeight={700} color="warning.main">{enMant}</Typography>
-                          <Typography variant="caption" color="text.secondary">En mantenimiento</Typography>
-                        </Box>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              );
-            })}
-          </Grid>
-
-          <Grid container spacing={2}>
-            {/* Últimos mantenimientos */}
-            <Grid item xs={12} md={7}>
-              <Card elevation={1} sx={{ borderRadius: 2 }}>
-                <CardContent sx={{ p: 2.5 }}>
-                  <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-                    Últimos mantenimientos
-                  </Typography>
-                  <List dense disablePadding>
-                    {ultimosMantenimientos.map((m, i) => {
-                      const equipo = equiposList.find((e) => e.id === m.equipoId);
-                      return (
-                        <Box key={m.id}>
-                          {i > 0 && <Divider />}
-                          <ListItem disablePadding sx={{ py: 1 }}>
-                            <ListItemAvatar>
-                              <Avatar sx={{ bgcolor: 'warning.light', color: 'warning.dark', width: 36, height: 36 }}>
-                                <Build fontSize="small" />
-                              </Avatar>
-                            </ListItemAvatar>
-                            <ListItemText
-                              primary={equipo ? `${equipo.marca} ${equipo.modeloSistemas}` : `Equipo #${m.equipoId}`}
-                              secondary={`${m.tipo} — ${m.descripcion?.substring(0, 50)}${m.descripcion?.length > 50 ? '…' : ''}`}
-                              primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: 500 }}
-                              secondaryTypographyProps={{ fontSize: '0.75rem' }}
-                            />
-                            <Box sx={{ ml: 1, textAlign: 'right' }}>
-                              <Chip
-                                label={m.estado}
-                                size="small"
-                                color={m.estado === 'completado' ? 'success' : m.estado === 'pendiente' ? 'warning' : 'default'}
-                                sx={{ fontSize: '0.7rem' }}
-                              />
-                              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-                                {new Date(m.fecha).toLocaleDateString('es-PE')}
-                              </Typography>
-                            </Box>
-                          </ListItem>
-                        </Box>
-                      );
-                    })}
-                  </List>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            {/* Usuarios */}
-            <Grid item xs={12} md={5}>
-              <Card elevation={1} sx={{ borderRadius: 2 }}>
-                <CardContent sx={{ p: 2.5 }}>
-                  <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-                    Usuarios del sistema
-                  </Typography>
-                  <List dense disablePadding>
-                    {usuarios.map((u, i) => (
-                      <Box key={u.id}>
-                        {i > 0 && <Divider />}
-                        <ListItem disablePadding sx={{ py: 1 }}>
-                          <ListItemAvatar>
-                            <Avatar sx={{ bgcolor: 'primary.light', color: 'primary.dark', width: 36, height: 36, fontSize: 14 }}>
-                              {u.nombre?.charAt(0) ?? '?'}
-                            </Avatar>
-                          </ListItemAvatar>
-                          <ListItemText
-                            primary={u.nombre}
-                            secondary={u.email}
-                            primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: 500 }}
-                            secondaryTypographyProps={{ fontSize: '0.75rem' }}
-                          />
-                          <Chip
-                            label={u.rol}
-                            size="small"
-                            color={u.rol === 'admin' ? 'error' : u.rol === 'tecnico' ? 'warning' : 'info'}
-                            sx={{ fontSize: '0.7rem' }}
-                          />
-                        </ListItem>
-                      </Box>
-                    ))}
-                  </List>
-                </CardContent>
-              </Card>
-            </Grid>
           </Grid>
         </>
       )}

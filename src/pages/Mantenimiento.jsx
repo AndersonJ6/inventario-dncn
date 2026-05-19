@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { addRegistro, updateRegistro, deleteRegistro } from '../store/slices/mantenimientoSlice';
+import { addRegistro, updateRegistro, deleteRegistro } from '../store/slices/mantenimientoSlice.js';
 import {
   Box,
   Button,
@@ -14,9 +14,8 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { Add } from '@mui/icons-material';
-import DataTable from '../components/cammon/DataTable';
-import ExportImportButtons from '../components/cammon/ExportImportButtons';
+import DataTable from '../components/cammon/DataTable.jsx';
+import ExportImportButtons from '../components/cammon/ExportImportButtons.jsx';
 import {
   exportMantenimientosExcel,
 } from '../services/excelService';
@@ -159,9 +158,6 @@ const Mantenimiento = () => {
       width: '80px',
     },
   ];
-
-  // Filtrar equipos por sede seleccionada
-  const equiposFiltrados = form.sede ? equipos.filter(e => e.sede === form.sede) : equipos;
 
   return (
     <Box>
