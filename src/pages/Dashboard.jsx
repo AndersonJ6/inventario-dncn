@@ -1,32 +1,27 @@
+// ------------------------------
+// Dependencies and Imports
+// ------------------------------
 import { useMemo } from 'react';
 import { useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+//import { useNavigate } from 'react-router-dom';
 import {
-  Box, Grid, Card, CardContent, Typography, Avatar, Button,
+  Box, Grid, Card, CardContent, Typography, Avatar, Container, //Stack,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
 } from '@mui/material';
-import { Add, Build, Warning, CheckCircle, Inventory } from '@mui/icons-material';
+import { Build, Warning, CheckCircle, Inventory } from '@mui/icons-material';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend, ComposedChart, Line,
 } from 'recharts';
 
-// ─── Paleta ───────────────────────────────────────────────────────────────────
+// ------------------------------
+// Palette and Helper Utilities
+// ------------------------------
 const PIE_COLORS = ['#1976d2', '#90caf9', '#546e7a', '#2e7d32', '#ffc107', '#ab47bc'];
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Dado un array de filas y un nombre de columna, devuelve true si esa columna
- * existe en al menos una fila con valor real (no vacío, no 'N/A').
- */
 const columnHasValues = (rows, key) =>
   rows.some((r) => r[key] !== undefined && r[key] !== '' && r[key] !== 'N/A');
 
-/**
- * Agrupa filas por el valor de `key` y cuenta cuántas hay de cada valor.
- * Devuelve array [{ name, value }] ordenado de mayor a menor.
- */
 const groupBy = (rows, key) => {
   const map = {};
   rows.forEach((r) => {
@@ -38,10 +33,6 @@ const groupBy = (rows, key) => {
     .sort((a, b) => b.value - a.value);
 };
 
-/**
- * Detecta qué columnas del Excel podrían representar "estado", "tipo" y "sede"
- * usando heurística de nombre. Devuelve { estadoKey, tipoKey, sedeKey }.
- */
 const detectKeys = (columns) => {
   const keys = columns.map((c) => c.key);
   const find = (patterns) =>
@@ -55,7 +46,9 @@ const detectKeys = (columns) => {
   };
 };
 
-// ─── StatCard ─────────────────────────────────────────────────────────────────
+// ------------------------------
+// Dashboard UI Components
+// ------------------------------
 const StatCard = ({ icon, label, value, color, subtitle }) => (
   <Card elevation={1} sx={{ borderRadius: 3, height: '100%', bgcolor: 'background.paper' }}>
     <CardContent sx={{ p: 3 }}>
@@ -75,7 +68,6 @@ const StatCard = ({ icon, label, value, color, subtitle }) => (
   </Card>
 );
 
-// ─── MiniBarChart ─────────────────────────────────────────────────────────────
 const MiniBarChart = ({ data, dataKey = 'value', nameKey = 'name', title, color = '#1976d2' }) => (
   <Card elevation={1} sx={{ borderRadius: 3, height: '100%', bgcolor: 'background.paper' }}>
     <CardContent sx={{ p: 3 }}>
@@ -93,7 +85,7 @@ const MiniBarChart = ({ data, dataKey = 'value', nameKey = 'name', title, color 
   </Card>
 );
 
-// ─── MiniPieChart ─────────────────────────────────────────────────────────────
+// Mini pie chart card component
 const MiniPieChart = ({ data, title }) => (
   <Card elevation={1} sx={{ borderRadius: 3, height: '100%', bgcolor: 'background.paper' }}>
     <CardContent sx={{ p: 3 }}>
@@ -114,6 +106,7 @@ const MiniPieChart = ({ data, title }) => (
   </Card>
 );
 
+// Analytics line/bar chart card component
 const AnalyticsChart = ({ data }) => (
   <Card elevation={1} sx={{ borderRadius: 3, height: '100%', bgcolor: 'background.paper' }}>
     <CardContent sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -141,12 +134,13 @@ const AnalyticsChart = ({ data }) => (
   </Card>
 );
 
-// ─── Componente principal ─────────────────────────────────────────────────────
+// ------------------------------
+// Main Dashboard Page Component
+// ------------------------------
 const Dashboard = () => {
   const equiposList    = useSelector((s) => s.equipos.list ?? []);
   const excelData      = useSelector((s) => s.equipos.excelData);
   const mantenimientos = useSelector((s) => s.mantenimiento.list ?? []);
-  const navigate       = useNavigate();
 
   const activeRows    = excelData ? excelData.rows    : equiposList;
   const activeColumns = excelData ? excelData.columns : null;
@@ -160,7 +154,7 @@ const Dashboard = () => {
   const estadoKey = isExcel ? detectedKeys?.estadoKey : 'estado';
   const tipoKey   = isExcel ? detectedKeys?.tipoKey   : 'tipo';
   const sedeKey   = isExcel ? detectedKeys?.sedeKey   : 'sede';
-  const marcaKey  = isExcel ? detectedKeys?.marcaKey  : 'marca';
+  //const marcaKey  = isExcel ? detectedKeys?.marcaKey  : 'marca';
 
   const stats = useMemo(() => {
     const total = activeRows.length;
@@ -194,6 +188,7 @@ const Dashboard = () => {
     return groupBy(activeRows, sedeKey).slice(0, 6);
   }, [activeRows, sedeKey]);
 
+  {/*
   const extraCharts = useMemo(() => {
     if (!isExcel || !activeColumns) return [];
     const usedKeys = [estadoKey, tipoKey, sedeKey, marcaKey].filter(Boolean);
@@ -205,7 +200,7 @@ const Dashboard = () => {
       })
       .slice(0, 2)
       .map((col) => ({ key: col.key, label: col.label, data: groupBy(activeRows, col.key) }));
-  }, [isExcel, activeColumns, activeRows, estadoKey, tipoKey, sedeKey, marcaKey]);
+  }, [isExcel, activeColumns, activeRows, estadoKey, tipoKey, sedeKey, marcaKey]);*/}
 
   const maintenanceTimeline = useMemo(() => {
     const timeline = {};
@@ -235,124 +230,72 @@ const Dashboard = () => {
       { label: 'RAM', key: 'ram' },
     ];
 
-  const todayLabel = new Date().toLocaleDateString('es-ES', {
-    day: 'numeric', month: 'long', year: 'numeric',
-  });
-
-  const handleNewEquipo = () => navigate('/equipos');
+  //const navigate = useNavigate();
+  //const handleNewEquipo = () => navigate('/equipos');
 
   return (
-    <Box sx={{ pb: 4 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, flexWrap: 'wrap', gap: 2 }}>
-        <Box sx={{ minWidth: 250 }}>
-          <Typography variant="h5" fontWeight={800} gutterBottom>
-            Dashboard de inventario tecnológico
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 580 }}>
-            {isExcel
-              ? `Mostrando datos del Excel: ${excelData.filename} — ${activeRows.length} registros cargados.`
-              : `Estado actual del inventario al ${todayLabel}. Datos clave de equipos, sedes y mantenimientos.`}
-          </Typography>
-        </Box>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={handleNewEquipo}
-          sx={{ borderRadius: 3, textTransform: 'none', px: 4, py: 1.3 }}
-        >
-          + Nuevo Equipo
-        </Button>
-      </Box>
-
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={3}>
-          <StatCard
-            icon={<Inventory />}
-            label="Total equipos"
-            value={stats.total}
-            color="primary"
-            subtitle={isExcel ? `Desde ${excelData.filename}` : 'En inventario'}
-          />
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <StatCard
-            icon={<CheckCircle />}
-            label={isExcel && estadoKey ? `Activos (${estadoKey})` : 'En uso'}
-            value={stats.enUso}
-            color="success"
-            subtitle={stats.total > 0 ? `${stats.pct}% del total` : '—'}
-          />
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <StatCard
-            icon={<Build />}
-            label="En mantenimiento"
-            value={stats.enMantenimiento}
-            color="warning"
-            subtitle="Fuera de servicio"
-          />
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <StatCard
-            icon={<Warning />}
-            label="Mantenimientos pendientes"
-            value={stats.pendientes}
-            color="error"
-            subtitle={isExcel ? 'Datos desde la hoja' : 'Requieren atención'}
-          />
-        </Grid>
-      </Grid>
-
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} lg={4}>
-          <Grid container spacing={2} sx={{ height: '100%' }}>
-            <Grid item xs={12} sx={{ height: { xs: 'auto', lg: '50%' } }}>
-              {porSede.length > 0 ? (
-                <MiniPieChart
-                  data={porSede}
-                  title={isExcel && sedeKey ? `Distribución por ${sedeKey}` : 'Distribución por sede'}
-                />
-              ) : (
-                <Card elevation={1} sx={{ borderRadius: 3, height: '100%', bgcolor: 'background.paper' }}>
-                  <CardContent sx={{ p: 3 }}>
-                    <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-                      Distribución por sede
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      No hay datos disponibles para esta vista.
-                    </Typography>
-                  </CardContent>
-                </Card>
-              )}
-            </Grid>
-            <Grid item xs={12} sx={{ height: { xs: 'auto', lg: '50%' } }}>
-              {porTipo.length > 0 ? (
-                <MiniBarChart
-                  data={porTipo}
-                  nameKey="name"
-                  title={isExcel && tipoKey ? `Equipos por ${tipoKey}` : 'Equipos por tipo'}
-                  color="#1976d2"
-                />
-              ) : (
-                <Card elevation={1} sx={{ borderRadius: 3, height: '100%', bgcolor: 'background.paper' }}>
-                  <CardContent sx={{ p: 3 }}>
-                    <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-                      Equipos por tipo
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      No hay datos suficientes para mostrar este gráfico.
-                    </Typography>
-                  </CardContent>
-                </Card>
-              )}
-            </Grid>
+    <Container maxWidth="xl" sx={{ py: 1, px: { xs: 2, md: 3 } }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+          <Grid size="grow" sx={{ minWidth: 250 }}>
+            <StatCard
+              icon={<Inventory />}
+              label="Total equipos"
+              value={stats.total}
+              color="primary"
+              subtitle={isExcel ? `Desde ${excelData.filename}` : 'Total en el inventario'}
+            />
           </Grid>
-        </Grid>
-
-        <Grid item xs={12} lg={8}>
-          <AnalyticsChart data={maintenanceTimeline.length > 0 ? maintenanceTimeline : [{ month: 'Sin datos', pendiente: 0, completado: 0, total: 0 }]} />
-        </Grid>
-      </Grid>
+          <Grid size="grow" sx={{ minWidth: 250 }}>
+            <StatCard
+              icon={<CheckCircle />}
+              label={isExcel && estadoKey ? `Activos (${estadoKey})` : 'En uso'}
+              value={stats.enUso}
+              color="success"
+              subtitle={stats.total > 0 ? `${stats.pct}% del total` : 'Sin registros'}
+            />
+          </Grid>
+          <Grid size="grow" sx={{ minWidth: 250 }}>
+            <StatCard
+              icon={<Build />}
+              label="En mantenimiento"
+              value={stats.enMantenimiento}
+              color="warning"
+              subtitle="Fuera de servicio"
+            />
+          </Grid>
+          <Grid size="grow" sx={{ minWidth: 250 }}>
+            <StatCard
+              icon={<Warning />}
+              label="Pendientes"
+              value={stats.pendientes}
+              color="error"
+              subtitle={isExcel ? 'Extraído desde la hoja' : 'Requieren atención'}
+            />
+          </Grid>
+        </Box>
+      
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+          
+            <Grid size="auto" sx={{ minWidth: 250 }}>
+              <MiniPieChart
+                data={porSede.length > 0 ? porSede : [{ name: 'Sin datos', value: 1 }]}
+                title={isExcel && sedeKey ? `Distribución por ${sedeKey}` : 'Distribución por sede'}
+              />
+            </Grid>
+            <Grid size="auto" sx={{ minWidth: 250 }} >
+              <MiniBarChart
+                data={porTipo.length > 0 ? porTipo : [{ name: 'Sin datos', value: 0 }]}
+                nameKey="name"
+                title={isExcel && tipoKey ? `Equipos por ${tipoKey}` : 'Equipos por tipo'}
+                color="#1976d2"
+              />
+            </Grid>
+            <Grid size="grow" sx={{ minWidth: 250 }}>
+            <AnalyticsChart data={maintenanceTimeline.length > 0 ? maintenanceTimeline : [{ month: 'Sin datos', pendiente: 0, completado: 0, total: 0 }]} />
+          </Grid>
+        
+        </Box>
+      
 
       <Card elevation={1} sx={{ borderRadius: 3, mb: 3, bgcolor: 'background.paper' }}>
         <CardContent sx={{ p: 3 }}>
@@ -394,13 +337,13 @@ const Dashboard = () => {
           </TableContainer>
         </CardContent>
       </Card>
-
+{/*
       {extraCharts.length > 0 && (
         <>
           <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>
             Otras distribuciones detectadas
           </Typography>
-          <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid container spacing={3} sx={{ mb: 3 }}>
             {extraCharts.map((chart) => (
               <Grid item xs={12} md={6} key={chart.key}>
                 <MiniBarChart
@@ -413,8 +356,8 @@ const Dashboard = () => {
             ))}
           </Grid>
         </>
-      )}
-    </Box>
+      )}*/}
+    </Container>
   );
 };
 

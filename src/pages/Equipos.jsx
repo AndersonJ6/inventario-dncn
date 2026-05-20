@@ -51,6 +51,15 @@ const exportToExcel = (data, columns, filename = 'equipos') => {
 const normalizeColumns = (rows) =>
   Object.keys(rows[0]).map((key) => ({ key, label: key }));
 
+const parseGoogleSheetUrl = (url) => {
+  const match = url.match(/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9_-]+)(?:\/.*?[?&]gid=(\d+))?/);
+  if (!match) return null;
+  return { spreadsheetId: match[1], gid: match[2] || '0' };
+};
+
+const buildGoogleSheetCsvUrl = ({ spreadsheetId, gid }) =>
+  `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gid}`;
+
 // ─── Detectar si columna es de estado para mostrar chip ──────────────────────
 const looksLikeStatus = (key) =>
   /estado|status|activo|condicion|condición/i.test(key);
@@ -99,6 +108,7 @@ const Equipos = () => {
   const [open, setOpen]          = useState(false);
   const [editingRow, setEditing] = useState(null); // { row, index } | null
   const [form, setForm]          = useState({});
+  const [sheetUrl, setSheetUrl]  = useState('');
 
   const fileInputRef = useRef(null);
 
@@ -116,6 +126,56 @@ const Equipos = () => {
   );
 
   // ── Importar Excel ──────────────────────────────────────────────────────────
+  const handleLoadGoogleSheet = async () => {
+    const trimmedUrl = sheetUrl.trim();
+    if (!trimmedUrl) {
+      setMessage({ type: 'error', text: 'Ingresa la URL de Google Sheets.' });
+      return;
+    }
+
+    const parsed = parseGoogleSheetUrl(trimmedUrl);
+    if (!parsed) {
+      setMessage({ type: 'error', text: 'URL de Google Sheets no válida.' });
+      return;
+    }
+
+    setLoading(true);
+    setMessage(null);
+    setSearch('');
+    setPage(0);
+
+    try {
+      const csvUrl = buildGoogleSheetCsvUrl(parsed);
+      const response = await fetch(csvUrl);
+
+      if (!response.ok) {
+        throw new Error(`No se pudo cargar la hoja. Código ${response.status}`);
+      }
+
+      const csvText = await response.text();
+      const workbook = XLSX.read(csvText, { type: 'string' });
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+      if (!rows.length) {
+        throw new Error('La hoja de Google Sheets no contiene datos.');
+      }
+
+      const columns = normalizeColumns(rows);
+      dispatch(setExcelData({ rows, columns, filename: `Google Sheets (${parsed.spreadsheetId})` }));
+      setMessage({
+        type: 'success',
+        text: `Hoja cargada desde Google Sheets — ${rows.length} registros · ${columns.length} columnas`,
+      });
+      setSheetUrl('');
+      setTimeout(() => setMessage(null), 5000);
+    } catch (err) {
+      setMessage({ type: 'error', text: err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -149,7 +209,7 @@ const Equipos = () => {
     dispatch(clearExcelData());
     setSearch('');
     setPage(0);
-    setMessage({ type: 'info', text: 'Excel eliminado. Mostrando inventario base.' });
+    setMessage({ type: 'info', text: 'Datos importados eliminados. Mostrando inventario base.' });
     setTimeout(() => setMessage(null), 3000);
   };
 
@@ -202,15 +262,35 @@ const Equipos = () => {
     <Box>
       {/* Cabecera */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, flexWrap: 'wrap', gap: 2 }}>
-        <Box>
+        <Box sx={{ minWidth: 280, flex: 1 }}>
           <Typography variant="h5" fontWeight={700}>
-            Gestión de Equipos
+            Gestión de datos
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             {excelData
               ? `Mostrando: ${excelData.filename}`
               : 'Inventario base del sistema'}
           </Typography>
+
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center" sx={{ width: '100%' }}>
+            <TextField
+              size="small"
+              label="URL de Google Sheets"
+              placeholder="Pega aquí el enlace de la hoja"
+              value={sheetUrl}
+              onChange={(e) => setSheetUrl(e.target.value)}
+              fullWidth
+            />
+            <Button
+              variant="contained"
+              color="secondary"
+              onClick={handleLoadGoogleSheet}
+              disabled={!sheetUrl.trim()}
+              sx={{ whiteSpace: 'nowrap', minWidth: 140 }}
+            >
+              Cargar hoja
+            </Button>
+          </Stack>
         </Box>
 
         <Stack direction="row" spacing={1} flexWrap="wrap">
@@ -222,7 +302,7 @@ const Equipos = () => {
             onChange={handleFileChange}
           />
 
-          <Tooltip title={excelData ? 'Carga un nuevo Excel (borra el actual automáticamente)' : 'Cargar archivo Excel'}>
+          <Tooltip title={excelData ? 'Cargar un nuevo Excel y reemplazar los datos actuales' : 'Cargar archivo Excel'}>
             <Button
               variant="contained"
               startIcon={<FileUpload />}
@@ -234,7 +314,7 @@ const Equipos = () => {
           </Tooltip>
 
           {excelData && (
-            <Tooltip title="Volver al inventario base">
+            <Tooltip title="Volver a los datos base">
               <Button variant="outlined" color="error" startIcon={<Close />} onClick={handleClearExcel}>
                 Limpiar
               </Button>
@@ -252,7 +332,7 @@ const Equipos = () => {
 
           {!excelData && (
             <Button variant="outlined" startIcon={<Add />} onClick={handleOpenAdd}>
-              Nuevo
+              Nuevo registro
             </Button>
           )}
         </Stack>
@@ -352,7 +432,7 @@ const Equipos = () => {
                     sx={{ py: 8, color: 'text.disabled' }}
                   >
                     {activeData.length === 0
-                      ? 'No hay datos. Carga un archivo Excel con el botón de arriba.'
+                      ? 'No hay datos. Carga un archivo o usa una URL de Google Sheets con los controles de arriba.'
                       : 'Sin resultados para la búsqueda.'}
                   </TableCell>
                 </TableRow>
@@ -462,7 +542,7 @@ const Equipos = () => {
 
       {/* Modal CRUD */}
       <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>{editingRow ? 'Editar equipo' : 'Nuevo equipo'}</DialogTitle>
+        <DialogTitle>{editingRow ? 'Editar registro' : 'Nuevo registro'}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             {(excelData ? activeColumns : BASE_COLUMNS).map((col) => (
