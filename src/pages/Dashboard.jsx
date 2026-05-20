@@ -274,26 +274,19 @@ const Dashboard = () => {
           </Grid>
         </Box>
       
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, gap: 1, flexGrow: 1 }}>
           
-            <Grid size="auto" sx={{ minWidth: 250 }}>
-              <MiniPieChart
-                data={porSede.length > 0 ? porSede : [{ name: 'Sin datos', value: 1 }]}
-                title={isExcel && sedeKey ? `Distribución por ${sedeKey}` : 'Distribución por sede'}
-              />
+            <Grid size="auto" sx={{ minWidth: 450 }}>
+                  <MiniPieChart
+                    data={porSede.length > 0 ? porSede : [{ name: 'Sin datos', value: 1 }]}
+                    title={isExcel && sedeKey ? `Distribución por ${sedeKey}` : 'Distribución por sede'}
+                  />
             </Grid>
-            <Grid size="auto" sx={{ minWidth: 250 }} >
-              <MiniBarChart
-                data={porTipo.length > 0 ? porTipo : [{ name: 'Sin datos', value: 0 }]}
-                nameKey="name"
-                title={isExcel && tipoKey ? `Equipos por ${tipoKey}` : 'Equipos por tipo'}
-                color="#1976d2"
-              />
-            </Grid>
+                
             <Grid size="grow" sx={{ minWidth: 250 }}>
-            <AnalyticsChart data={maintenanceTimeline.length > 0 ? maintenanceTimeline : [{ month: 'Sin datos', pendiente: 0, completado: 0, total: 0 }]} />
-          </Grid>
-        
+              <AnalyticsChart data={maintenanceTimeline.length > 0 ? maintenanceTimeline : [{ month: 'Sin datos', pendiente: 0, completado: 0, total: 0 }]} />
+            </Grid>
+              
         </Box>
       
 
@@ -337,6 +330,24 @@ const Dashboard = () => {
           </TableContainer>
         </CardContent>
       </Card>
+       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+          
+            <Grid size="grow" sx={{ minWidth: 250 }}>
+              <MiniPieChart
+                data={porSede.length > 0 ? porSede : [{ name: 'Sin datos', value: 1 }]}
+                title={isExcel && sedeKey ? `Distribución por ${sedeKey}` : 'Distribución por sede'}
+              />
+            </Grid>
+            <Grid size="grow" sx={{ minWidth: 250 }} >
+              <MiniBarChart
+                data={porTipo.length > 0 ? porTipo : [{ name: 'Sin datos', value: 0 }]}
+                nameKey="name"
+                title={isExcel && tipoKey ? `Equipos por ${tipoKey}` : 'Equipos por tipo'}
+                color="#1976d2"
+              />
+            </Grid>
+        
+        </Box>
 {/*
       {extraCharts.length > 0 && (
         <>
