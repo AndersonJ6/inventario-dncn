@@ -9,8 +9,8 @@ import {
   ListItemIcon,
   ListItemText,
   Typography,
-  Avatar,
-  Chip,
+ // Avatar,
+  //Chip,
   Tooltip,
 } from '@mui/material';
 import {
@@ -57,7 +57,7 @@ const NAV_ITEMS = [
   },
 ];
 
-const ROL_COLORS = {
+{/*const ROL_COLORS = {
   admin: 'error',
   tecnico: 'warning',
   visualizador: 'info',
@@ -67,7 +67,8 @@ const ROL_LABELS = {
   admin: 'Administrador',
   tecnico: 'Técnico',
   visualizador: 'Visualizador',
-};
+};*/}
+
 
 const Sidebar = ({ open, onClose, variant = 'permanent' }) => {
   const navigate = useNavigate();
@@ -113,7 +114,7 @@ const Sidebar = ({ open, onClose, variant = 'permanent' }) => {
         </Box>
         <Box>
           <Typography variant="subtitle1" fontWeight={700} lineHeight={1.2}>
-            TechInventory
+            Inventario
           </Typography>
           <Typography variant="caption" color="text.secondary">
             Sistema de inventario
@@ -121,7 +122,7 @@ const Sidebar = ({ open, onClose, variant = 'permanent' }) => {
         </Box>
       </Box>
 
-      {/* Perfil */}
+      {/* Perfil 
       <Box sx={{ px: 2.5, py: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Avatar sx={{ width: 40, height: 40, bgcolor: 'primary.main', fontSize: 16, fontWeight: 700 }}>
@@ -139,7 +140,8 @@ const Sidebar = ({ open, onClose, variant = 'permanent' }) => {
             />
           </Box>
         </Box>
-      </Box>
+      </Box>*/}
+      
 
       {/* Nav */}
       <Box sx={{ flex: 1, overflow: 'auto', py: 1.5 }}>

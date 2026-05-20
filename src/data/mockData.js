@@ -28,11 +28,11 @@ export const TIPOS_EQUIPOS = [
 
 // Usuarios con sede asignada
 export const mockUsuarios = [
-  { id: 1, nombre: 'Admin Principal', email: 'admin@tech.com', rol: 'admin', sede: 'Central' },
-  { id: 2, nombre: 'Carlos Técnico',  email: 'tecnico@tech.com', rol: 'tecnico', sede: 'Garzón' },
-  { id: 3, nombre: 'María Viewer',    email: 'viewer@tech.com', rol: 'visualizador', sede: 'Central' },
-  { id: 4, nombre: 'Juan Técnico',    email: 'juan@tech.com', rol: 'tecnico', sede: 'Garzón' },
-  { id: 5, nombre: 'Ana Soporte',     email: 'soporte@tech.com', rol: 'tecnico', sede: 'Central' },
+  { id: 1, nombre: 'Admin Principal', user: 'admin', email: 'admin@tech.com', rol: 'admin', sede: 'Central' },
+  { id: 2, nombre: 'Carlos Técnico',  user: 'tecnico', email: 'tecnico@tech.com', rol: 'tecnico', sede: 'Garzón' },
+  { id: 3, nombre: 'María Viewer',    user: 'viewer', email: 'viewer@tech.com', rol: 'visualizador', sede: 'Central' },
+  { id: 4, nombre: 'Juan Técnico',    user: 'juan', email: 'juan@tech.com', rol: 'tecnico', sede: 'Garzón' },
+  { id: 5, nombre: 'Ana Soporte',     user: 'soporte', email: 'soporte@tech.com', rol: 'tecnico', sede: 'Central' },
 ];
 
 // Equipos con todos los campos requeridos

@@ -34,6 +34,6 @@ const sendMCPRequest = async (method, params = {}) => {
 
 export const pingMCP = async () => sendMCPRequest("ping");
 
-export const loginWithMCP = async (email, password) => {
-  return sendMCPRequest("login", { email, password });
+export const loginWithMCP = async (user, password) => {
+  return sendMCPRequest("login", { user, email: user, password });
 };

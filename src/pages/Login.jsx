@@ -40,7 +40,7 @@ const Login = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  const [form, setForm] = useState({ email: '', password: '' });
+  const [form, setForm] = useState({ user: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -51,7 +51,7 @@ const Login = () => {
   };
 
   const handleQuickLogin = (usuario) => {
-    setForm({ email: usuario.email, password: '1234' });
+    setForm({ user: usuario.user ?? usuario.email, password: '1234' });
     setLocalError('');
   };
 
@@ -59,7 +59,7 @@ const Login = () => {
     e.preventDefault();
     setLocalError('');
 
-    if (!form.email || !form.password) {
+    if (!form.user || !form.password) {
       setLocalError('Por favor completa todos los campos.');
       return;
     }
@@ -69,13 +69,13 @@ const Login = () => {
     let usuario;
 
     try {
-      const remoteResult = await loginWithMCP(form.email, form.password);
+      const remoteResult = await loginWithMCP(form.user, form.password);
 
       if (remoteResult?.authenticated === true || remoteResult?.user) {
         usuario = remoteResult.user || {
-          id: remoteResult.id ?? form.email,
-          nombre: remoteResult.nombre || remoteResult.name || form.email,
-          email: form.email,
+          id: remoteResult.id ?? form.user,
+          nombre: remoteResult.nombre || remoteResult.name || form.user,
+          email: form.user,
           rol: remoteResult.rol || remoteResult.role || 'visualizador',
           sede: remoteResult.sede || 'Central',
         };
@@ -91,7 +91,7 @@ const Login = () => {
 
       if (isNetworkError || unsupportedMethod) {
         usuario = DEMO_USERS.find(
-          (u) => u.email === form.email && u.password === form.password
+          (u) => (u.user === form.user || u.email === form.user) && u.password === form.password
         );
       } else {
         setLocalError(message);
@@ -153,8 +153,8 @@ const Login = () => {
         </Box>
 
         <Card elevation={3} sx={{ borderRadius: 3 }}>
-          <CardContent sx={{ p: 3 }}>
-            <Typography variant="h6" fontWeight={600} gutterBottom>
+          <CardContent sx={{ p: 3, textAlign: 'center' }}>
+            <Typography variant="h6" fontWeight={600} gutterBottom >
               Iniciar sesión
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
@@ -170,10 +170,10 @@ const Login = () => {
             <Box component="form" onSubmit={handleSubmit}>
               <TextField
                 fullWidth
-                label="Correo electrónico"
-                name="email"
-                type="email"
-                value={form.email}
+                label="Usuario"
+                name="user"
+                type="text"
+                value={form.user}
                 onChange={handleChange}
                 sx={{ mb: 2 }}
                 InputProps={{
@@ -258,7 +258,7 @@ const Login = () => {
                       {u.nombre}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {u.email}
+                      {u.user ?? u.email}
                     </Typography>
                   </Box>
                   <Chip
