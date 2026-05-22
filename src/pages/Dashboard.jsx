@@ -1,14 +1,14 @@
 // ------------------------------
 // Dependencies and Imports
 // ------------------------------
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
-//import { useNavigate } from 'react-router-dom';
 import {
-  Box, Grid, Card, CardContent, Typography, Avatar, Container, //Stack,
+  Box, Grid, Card, CardContent, Typography, Avatar, Container,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
+  TextField, MenuItem, Chip, Stack, InputAdornment,
 } from '@mui/material';
-import { Build, Warning, CheckCircle, Inventory } from '@mui/icons-material';
+import { Build, Warning, CheckCircle, Inventory, Search, FilterList } from '@mui/icons-material';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend, ComposedChart, Line,
@@ -33,11 +33,13 @@ const groupBy = (rows, key) => {
     .sort((a, b) => b.value - a.value);
 };
 
+const getUnique = (rows, key) =>
+  [...new Set(rows.map((r) => r[key]).filter(Boolean))].sort();
+
 const detectKeys = (columns) => {
   const keys = columns.map((c) => c.key);
   const find = (patterns) =>
     keys.find((k) => patterns.some((p) => new RegExp(p, 'i').test(k))) ?? null;
-
   return {
     estadoKey: find(['estado', 'status', 'condici']),
     tipoKey:   find(['tipo', 'type', 'categoria', 'categoría', 'clase']),
@@ -85,7 +87,6 @@ const MiniBarChart = ({ data, dataKey = 'value', nameKey = 'name', title, color 
   </Card>
 );
 
-// Mini pie chart card component
 const MiniPieChart = ({ data, title }) => (
   <Card elevation={1} sx={{ borderRadius: 3, height: '100%', bgcolor: 'background.paper' }}>
     <CardContent sx={{ p: 3 }}>
@@ -106,15 +107,12 @@ const MiniPieChart = ({ data, title }) => (
   </Card>
 );
 
-// Analytics line/bar chart card component
 const AnalyticsChart = ({ data }) => (
   <Card elevation={1} sx={{ borderRadius: 3, height: '100%', bgcolor: 'background.paper' }}>
     <CardContent sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2, gap: 1.5 }}>
-        <Box>
-          <Typography variant="h6" fontWeight={700}>Analítica detallada</Typography>
-          <Typography variant="body2" color="text.secondary">Comparativo de mantenimiento mensual</Typography>
-        </Box>
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="h6" fontWeight={700}>Analítica detallada</Typography>
+        <Typography variant="body2" color="text.secondary">Comparativo de mantenimiento mensual</Typography>
       </Box>
       <Box sx={{ flex: 1, minHeight: 320 }}>
         <ResponsiveContainer width="100%" height="100%">
@@ -135,6 +133,153 @@ const AnalyticsChart = ({ data }) => (
 );
 
 // ------------------------------
+// FilterPanel — reemplaza MiniPieChart de sede
+// Panel izquierdo: filtros | Panel derecho: donut del resultado
+// ------------------------------
+const FilterPanel = ({ rows, sedeKey, estadoKey, tipoKey, onFiltered }) => {
+  const [sede,   setSede]   = useState('');
+  const [estado, setEstado] = useState('');
+  const [tipo,   setTipo]   = useState('');
+  const [texto,  setTexto]  = useState('');
+
+  const sedes   = useMemo(() => getUnique(rows, sedeKey   || 'sede'),   [rows, sedeKey]);
+  const estados = useMemo(() => getUnique(rows, estadoKey || 'estado'), [rows, estadoKey]);
+  const tipos   = useMemo(() => getUnique(rows, tipoKey   || 'tipo'),   [rows, tipoKey]);
+
+  const filtered = useMemo(() => {
+    let result = [...rows];
+    if (sede)   result = result.filter(r => r[sedeKey   || 'sede']   === sede);
+    if (estado) result = result.filter(r => r[estadoKey || 'estado'] === estado);
+    if (tipo)   result = result.filter(r => r[tipoKey   || 'tipo']   === tipo);
+    if (texto) {
+      const q = texto.toLowerCase();
+      result = result.filter(r =>
+        Object.values(r).some(v => String(v).toLowerCase().includes(q))
+      );
+    }
+    return result;
+  }, [rows, sede, estado, tipo, texto, sedeKey, estadoKey, tipoKey]);
+
+  // Notifica al padre cada vez que cambia el resultado
+  useMemo(() => { onFiltered(filtered); }, [filtered, onFiltered]);
+
+  // Chips activos
+  const chips = [
+    sede   && { label: `Sede: ${sede}`,   onDelete: () => setSede('')   },
+    estado && { label: `Estado: ${estado}`, onDelete: () => setEstado('') },
+    tipo   && { label: `Tipo: ${tipo}`,   onDelete: () => setTipo('')   },
+    texto  && { label: `Texto: "${texto}"`, onDelete: () => setTexto('') },
+  ].filter(Boolean);
+
+  // Donut: distribución del campo más relevante según filtro activo
+  const donutKey  = estado ? (tipoKey || 'tipo') : (estadoKey || 'estado');
+  const donutData = useMemo(() =>
+    groupBy(filtered, donutKey).slice(0, 6),
+    [filtered, donutKey]
+  );
+
+  return (
+    <Card elevation={1} sx={{ borderRadius: 3, bgcolor: 'background.paper', height: '100%' }}>
+      <CardContent sx={{ p: 3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+          <FilterList color="primary" />
+          <Typography variant="subtitle1" fontWeight={700}>Filtros del Dashboard</Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
+            {filtered.length} / {rows.length} equipos
+          </Typography>
+        </Box>
+
+        {/* Filtros + Donut lado a lado */}
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+
+          {/* Columna izquierda: selects + búsqueda */}
+          <Box sx={{ flex: '1 1 200px', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <TextField
+              select size="small" label="Sede" value={sede}
+              onChange={e => setSede(e.target.value)}
+              fullWidth
+            >
+              <MenuItem value="">Todas</MenuItem>
+              {sedes.map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+            </TextField>
+
+            <TextField
+              select size="small" label="Estado" value={estado}
+              onChange={e => setEstado(e.target.value)}
+              fullWidth
+            >
+              <MenuItem value="">Todos</MenuItem>
+              {estados.map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+            </TextField>
+
+            <TextField
+              select size="small" label="Tipo de equipo" value={tipo}
+              onChange={e => setTipo(e.target.value)}
+              fullWidth
+            >
+              <MenuItem value="">Todos</MenuItem>
+              {tipos.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+            </TextField>
+
+            <TextField
+              size="small" label="Buscar..." value={texto}
+              onChange={e => setTexto(e.target.value)}
+              fullWidth
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
+            />
+
+            {/* Chips de filtros activos */}
+            {chips.length > 0 && (
+              <Stack direction="row" flexWrap="wrap" gap={0.5} sx={{ mt: 0.5 }}>
+                {chips.map((chip, i) => (
+                  <Chip
+                    key={i}
+                    label={chip.label}
+                    onDelete={chip.onDelete}
+                    size="small"
+                    color="primary"
+                    variant="outlined"
+                  />
+                ))}
+              </Stack>
+            )}
+          </Box>
+
+          {/* Columna derecha: donut del resultado filtrado */}
+          <Box sx={{ flex: '1 1 200px', minWidth: 200 }}>
+            <Typography variant="caption" color="text.secondary" fontWeight={600}>
+              {estado ? `Por tipo (filtrado por ${estado})` : 'Por estado (resultado filtrado)'}
+            </Typography>
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie
+                  data={donutData.length > 0 ? donutData : [{ name: 'Sin datos', value: 1 }]}
+                  cx="50%" cy="50%"
+                  innerRadius={55} outerRadius={80}
+                  paddingAngle={4} dataKey="value" nameKey="name"
+                >
+                  {donutData.map((_, i) => (
+                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={{ borderRadius: 10, fontSize: 12 }} />
+                <Legend iconType="circle" iconSize={9} wrapperStyle={{ fontSize: 11 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          </Box>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+};
+
+// ------------------------------
 // Main Dashboard Page Component
 // ------------------------------
 const Dashboard = () => {
@@ -146,6 +291,9 @@ const Dashboard = () => {
   const activeColumns = excelData ? excelData.columns : null;
   const isExcel       = !!excelData;
 
+  // Filas filtradas por el FilterPanel
+  const [filteredRows, setFilteredRows] = useState(activeRows);
+
   const detectedKeys = useMemo(() => {
     if (!isExcel || !activeColumns) return null;
     return detectKeys(activeColumns);
@@ -154,7 +302,6 @@ const Dashboard = () => {
   const estadoKey = isExcel ? detectedKeys?.estadoKey : 'estado';
   const tipoKey   = isExcel ? detectedKeys?.tipoKey   : 'tipo';
   const sedeKey   = isExcel ? detectedKeys?.sedeKey   : 'sede';
-  //const marcaKey  = isExcel ? detectedKeys?.marcaKey  : 'marca';
 
   const stats = useMemo(() => {
     const total = activeRows.length;
@@ -165,49 +312,33 @@ const Dashboard = () => {
       const pct = total > 0 ? Math.round((enUso / total) * 100) : 0;
       return { total, enUso, enMantenimiento, pendientes, pct };
     }
-
     if (estadoKey && columnHasValues(activeRows, estadoKey)) {
-      const KEYWORDS_EN_USO  = ['activo', 'en uso', 'operativo', 'bueno', 'si', 'sí', 'yes'];
-      const KEYWORDS_MANT    = ['mantenimiento', 'en mantenimiento', 'reparación', 'falla'];
-      const enUso            = activeRows.filter((r) => KEYWORDS_EN_USO.includes(String(r[estadoKey]).toLowerCase().trim())).length;
-      const enMantenimiento  = activeRows.filter((r) => KEYWORDS_MANT.includes(String(r[estadoKey]).toLowerCase().trim())).length;
+      const KEYWORDS_EN_USO = ['activo', 'en uso', 'operativo', 'bueno', 'si', 'sí', 'yes'];
+      const KEYWORDS_MANT   = ['mantenimiento', 'en mantenimiento', 'reparación', 'falla'];
+      const enUso           = activeRows.filter((r) => KEYWORDS_EN_USO.includes(String(r[estadoKey]).toLowerCase().trim())).length;
+      const enMantenimiento = activeRows.filter((r) => KEYWORDS_MANT.includes(String(r[estadoKey]).toLowerCase().trim())).length;
       const pct = total > 0 ? Math.round((enUso / total) * 100) : 0;
       return { total, enUso, enMantenimiento, pendientes: 0, pct };
     }
-
     return { total, enUso: 0, enMantenimiento: 0, pendientes: 0, pct: 0 };
   }, [activeRows, isExcel, estadoKey, mantenimientos]);
 
   const porTipo = useMemo(() => {
     if (!tipoKey) return [];
-    return groupBy(activeRows, tipoKey).slice(0, 6);
-  }, [activeRows, tipoKey]);
+    return groupBy(filteredRows, tipoKey).slice(0, 6);
+  }, [filteredRows, tipoKey]);
 
   const porSede = useMemo(() => {
     if (!sedeKey) return [];
-    return groupBy(activeRows, sedeKey).slice(0, 6);
-  }, [activeRows, sedeKey]);
-
-  {/*
-  const extraCharts = useMemo(() => {
-    if (!isExcel || !activeColumns) return [];
-    const usedKeys = [estadoKey, tipoKey, sedeKey, marcaKey].filter(Boolean);
-    return activeColumns
-      .filter((col) => {
-        if (usedKeys.includes(col.key)) return false;
-        const uniq = new Set(activeRows.map((r) => r[col.key])).size;
-        return uniq >= 2 && uniq <= 15 && columnHasValues(activeRows, col.key);
-      })
-      .slice(0, 2)
-      .map((col) => ({ key: col.key, label: col.label, data: groupBy(activeRows, col.key) }));
-  }, [isExcel, activeColumns, activeRows, estadoKey, tipoKey, sedeKey, marcaKey]);*/}
+    return groupBy(filteredRows, sedeKey).slice(0, 6);
+  }, [filteredRows, sedeKey]);
 
   const maintenanceTimeline = useMemo(() => {
     const timeline = {};
     mantenimientos.forEach((m) => {
       const date = new Date(m.fecha);
       if (Number.isNaN(date)) return;
-      const month = date.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' });
+      const month    = date.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' });
       const monthKey = date.toISOString().slice(0, 7);
       if (!timeline[monthKey]) {
         timeline[monthKey] = { month, monthKey, pendiente: 0, completado: 0, total: 0 };
@@ -219,77 +350,62 @@ const Dashboard = () => {
     return Object.values(timeline).sort((a, b) => a.monthKey.localeCompare(b.monthKey));
   }, [mantenimientos]);
 
-  const detailTableRows = isExcel ? activeRows.slice(0, 6) : equiposList.slice(0, 6);
+  // Tabla reacciona a filtros
+  const detailTableRows = filteredRows.slice(0, 10);
   const detailTableColumns = isExcel
     ? (activeColumns?.slice(0, 5) ?? [])
     : [
-      { label: 'Código', key: 'codigoPatrimonial' },
-      { label: 'Marca', key: 'marca' },
-      { label: 'Modelo', key: 'modeloSistemas' },
-      { label: 'Procesador', key: 'procesador' },
-      { label: 'RAM', key: 'ram' },
-    ];
-
-  //const navigate = useNavigate();
-  //const handleNewEquipo = () => navigate('/equipos');
+        { label: 'Código',     key: 'codigoPatrimonial' },
+        { label: 'Marca',      key: 'marca'             },
+        { label: 'Modelo',     key: 'modeloSistemas'    },
+        { label: 'Procesador', key: 'procesador'        },
+        { label: 'RAM',        key: 'ram'               },
+      ];
 
   return (
     <Container maxWidth="xl" sx={{ py: 1, px: { xs: 2, md: 3 } }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
-          <Grid size="grow" sx={{ minWidth: 250 }}>
-            <StatCard
-              icon={<Inventory />}
-              label="Total equipos"
-              value={stats.total}
-              color="primary"
-              subtitle={isExcel ? `Desde ${excelData.filename}` : 'Total en el inventario'}
-            />
-          </Grid>
-          <Grid size="grow" sx={{ minWidth: 250 }}>
-            <StatCard
-              icon={<CheckCircle />}
-              label={isExcel && estadoKey ? `Activos (${estadoKey})` : 'En uso'}
-              value={stats.enUso}
-              color="success"
-              subtitle={stats.total > 0 ? `${stats.pct}% del total` : 'Sin registros'}
-            />
-          </Grid>
-          <Grid size="grow" sx={{ minWidth: 250 }}>
-            <StatCard
-              icon={<Build />}
-              label="En mantenimiento"
-              value={stats.enMantenimiento}
-              color="warning"
-              subtitle="Fuera de servicio"
-            />
-          </Grid>
-          <Grid size="grow" sx={{ minWidth: 250 }}>
-            <StatCard
-              icon={<Warning />}
-              label="Pendientes"
-              value={stats.pendientes}
-              color="error"
-              subtitle={isExcel ? 'Extraído desde la hoja' : 'Requieren atención'}
-            />
-          </Grid>
-        </Box>
-      
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, gap: 1, flexGrow: 1 }}>
-          
-            <Grid size="auto" sx={{ minWidth: 450 }}>
-                  <MiniPieChart
-                    data={porSede.length > 0 ? porSede : [{ name: 'Sin datos', value: 1 }]}
-                    title={isExcel && sedeKey ? `Distribución por ${sedeKey}` : 'Distribución por sede'}
-                  />
-            </Grid>
-                
-            <Grid size="grow" sx={{ minWidth: 250 }}>
-              <AnalyticsChart data={maintenanceTimeline.length > 0 ? maintenanceTimeline : [{ month: 'Sin datos', pendiente: 0, completado: 0, total: 0 }]} />
-            </Grid>
-              
-        </Box>
-      
 
+      {/* KPI Cards */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+        <Grid size="grow" sx={{ minWidth: 250 }}>
+          <StatCard icon={<Inventory />} label="Total equipos" value={stats.total} color="primary"
+            subtitle={isExcel ? `Desde ${excelData.filename}` : 'Total en el inventario'} />
+        </Grid>
+        <Grid size="grow" sx={{ minWidth: 250 }}>
+          <StatCard icon={<CheckCircle />} label={isExcel && estadoKey ? `Activos (${estadoKey})` : 'En uso'}
+            value={stats.enUso} color="success"
+            subtitle={stats.total > 0 ? `${stats.pct}% del total` : 'Sin registros'} />
+        </Grid>
+        <Grid size="grow" sx={{ minWidth: 250 }}>
+          <StatCard icon={<Build />} label="En mantenimiento" value={stats.enMantenimiento}
+            color="warning" subtitle="Fuera de servicio" />
+        </Grid>
+        <Grid size="grow" sx={{ minWidth: 250 }}>
+          <StatCard icon={<Warning />} label="Pendientes" value={stats.pendientes}
+            color="error" subtitle={isExcel ? 'Extraído desde la hoja' : 'Requieren atención'} />
+        </Grid>
+      </Box>
+
+      {/* FilterPanel + Analytics */}
+      <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+        <Box sx={{ flex: '1 1 420px' }}>
+          <FilterPanel
+            rows={activeRows}
+            sedeKey={sedeKey}
+            estadoKey={estadoKey}
+            tipoKey={tipoKey}
+            onFiltered={setFilteredRows}
+          />
+        </Box>
+        <Box sx={{ flex: '1 1 350px' }}>
+          <AnalyticsChart data={maintenanceTimeline.length > 0
+            ? maintenanceTimeline
+            : [{ month: 'Sin datos', pendiente: 0, completado: 0, total: 0 }]}
+          />
+        </Box>
+      </Box>
+
+      {/* Tabla de activos — reacciona a filtros */}
       <Card elevation={1} sx={{ borderRadius: 3, mb: 3, bgcolor: 'background.paper' }}>
         <CardContent sx={{ p: 3 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
@@ -300,27 +416,26 @@ const Dashboard = () => {
               </Typography>
             </Box>
             <Typography variant="caption" color="text.secondary">
-              {detailTableRows.length} filas mostradas
+              {filteredRows.length} filas mostradas
             </Typography>
           </Box>
-
           <TableContainer component={Paper} sx={{ boxShadow: 'none' }}>
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  {detailTableColumns.map((column) => (
-                    <TableCell key={column.key} sx={{ fontWeight: 700, color: 'text.primary' }}>
-                      {column.label}
+                  {detailTableColumns.map((col) => (
+                    <TableCell key={col.key} sx={{ fontWeight: 700, color: 'text.primary' }}>
+                      {col.label}
                     </TableCell>
                   ))}
                 </TableRow>
               </TableHead>
               <TableBody>
-                {detailTableRows.map((row, rowIndex) => (
-                  <TableRow key={row.id ?? rowIndex} hover>
-                    {detailTableColumns.map((column) => (
-                      <TableCell key={`${rowIndex}-${column.key}`} sx={{ fontSize: '0.9rem' }}>
-                        {row[column.key] !== '' && row[column.key] != null ? String(row[column.key]) : '—'}
+                {detailTableRows.map((row, ri) => (
+                  <TableRow key={row.id ?? ri} hover>
+                    {detailTableColumns.map((col) => (
+                      <TableCell key={`${ri}-${col.key}`} sx={{ fontSize: '0.9rem' }}>
+                        {row[col.key] !== '' && row[col.key] != null ? String(row[col.key]) : '—'}
                       </TableCell>
                     ))}
                   </TableRow>
@@ -330,44 +445,25 @@ const Dashboard = () => {
           </TableContainer>
         </CardContent>
       </Card>
-       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
-          
-            <Grid size="grow" sx={{ minWidth: 250 }}>
-              <MiniPieChart
-                data={porSede.length > 0 ? porSede : [{ name: 'Sin datos', value: 1 }]}
-                title={isExcel && sedeKey ? `Distribución por ${sedeKey}` : 'Distribución por sede'}
-              />
-            </Grid>
-            <Grid size="grow" sx={{ minWidth: 250 }} >
-              <MiniBarChart
-                data={porTipo.length > 0 ? porTipo : [{ name: 'Sin datos', value: 0 }]}
-                nameKey="name"
-                title={isExcel && tipoKey ? `Equipos por ${tipoKey}` : 'Equipos por tipo'}
-                color="#1976d2"
-              />
-            </Grid>
-        
+
+      {/* Gráficos inferiores — también reflejan filtros */}
+      <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+        <Box sx={{ flex: '1 1 300px' }}>
+          <MiniPieChart
+            data={porSede.length > 0 ? porSede : [{ name: 'Sin datos', value: 1 }]}
+            title={isExcel && sedeKey ? `Distribución por ${sedeKey}` : 'Distribución por sede'}
+          />
         </Box>
-{/*
-      {extraCharts.length > 0 && (
-        <>
-          <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>
-            Otras distribuciones detectadas
-          </Typography>
-          <Grid container spacing={3} sx={{ mb: 3 }}>
-            {extraCharts.map((chart) => (
-              <Grid item xs={12} md={6} key={chart.key}>
-                <MiniBarChart
-                  data={chart.data}
-                  nameKey="name"
-                  title={`Por ${chart.label}`}
-                  color="#e65100"
-                />
-              </Grid>
-            ))}
-          </Grid>
-        </>
-      )}*/}
+        <Box sx={{ flex: '1 1 300px' }}>
+          <MiniBarChart
+            data={porTipo.length > 0 ? porTipo : [{ name: 'Sin datos', value: 0 }]}
+            nameKey="name"
+            title={isExcel && tipoKey ? `Equipos por ${tipoKey}` : 'Equipos por tipo'}
+            color="#1976d2"
+          />
+        </Box>
+      </Box>
+
     </Container>
   );
 };
