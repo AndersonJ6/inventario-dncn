@@ -11,29 +11,21 @@ import {
   Stack, TextField, Typography, Chip, Alert, Paper, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, TablePagination,
   IconButton, InputAdornment, Tooltip, LinearProgress, Fade,
-  MenuItem, Select, FormControl, InputLabel,
 } from '@mui/material';
 import {
   Add, Edit, Delete, Search, FileUpload, FileDownload, Close, TableChart,
 } from '@mui/icons-material';
 
-// ─── Leer Excel — retorna TODAS las hojas ─────────────────────────────────────
+// ─── Leer Excel ───────────────────────────────────────────────────────────────
 const readExcelFile = (file) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const wb = XLSX.read(e.target.result, { type: 'array' });
-
-        // Leer todas las hojas
-        const allSheets = {};
-        wb.SheetNames.forEach((name) => {
-          const ws = wb.Sheets[name];
-          const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
-          allSheets[name] = rows;
-        });
-
-        resolve({ sheetNames: wb.SheetNames, allSheets });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        resolve(rows);
       } catch {
         reject(new Error('No se pudo leer el archivo Excel.'));
       }
@@ -55,75 +47,9 @@ const exportToExcel = (data, columns, filename = 'equipos') => {
   XLSX.writeFile(wb, `${filename}_${new Date().toISOString().slice(0, 10)}.xlsx`);
 };
 
-// ─── Extraer ID de Google Sheet ────────────────────────────────────────────────
-const extractSheetId = (url) => {
-  const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-  return match ? match[1] : null;
-};
-
-// ─── Obtener hojas de Google Sheets ───────────────────────────────────────────
-const fetchGoogleSheetMetadata = async (sheetId) => {
-  try {
-    // Intentamos cargar la primera hoja para verificar que el documento es válido
-    const testUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=0`;
-    const testResponse = await fetch(testUrl, { mode: 'no-cors' });
-    if (!testResponse.ok && testResponse.status !== 0) {
-      throw new Error('No se pudo acceder al Google Sheet');
-    }
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-// ─── Detectar todas las hojas del Google Sheet ──────────────────────────────────
-const detectAllGoogleSheets = async (sheetId) => {
-  const sheets = {};
-  const maxSheets = 20; // Intentar hasta 20 hojas (gid 0-19)
-  
-  try {
-    for (let gid = 0; gid < maxSheets; gid++) {
-      try {
-        const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
-        const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
-        
-        if (!response.ok) break; // Si falla, probablemente no hay más hojas
-        
-        const csv = await response.text();
-        const lines = csv.split('\n').filter(line => line.trim());
-        
-        if (lines.length > 0) {
-          // Si tiene contenido, la agregamos
-          const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, ''));
-          const rows = lines.slice(1).map(line => {
-            const values = line.split(',').map(v => v.trim().replace(/^["']|["']$/g, ''));
-            const row = {};
-            headers.forEach((header, idx) => {
-              row[header] = values[idx] || '';
-            });
-            return row;
-          });
-          
-          const sheetName = `📊 Hoja ${gid + 1}`;
-          sheets[sheetName] = { rows, gid };
-        }
-      } catch {
-        // Continuar con el siguiente gid si hay error
-        continue;
-      }
-    }
-  } catch {
-    // Error al detectar hojas
-  }
-  
-  return sheets;
-};
-
 // ─── Columnas desde filas ─────────────────────────────────────────────────────
 const normalizeColumns = (rows) =>
-  rows.length > 0
-    ? Object.keys(rows[0]).map((key) => ({ key, label: key }))
-    : [];
+  Object.keys(rows[0]).map((key) => ({ key, label: key }));
 
 // ─── Detectar si columna es de estado para mostrar chip ──────────────────────
 const looksLikeStatus = (key) =>
@@ -158,8 +84,11 @@ const BASE_COLUMNS = [
 const Equipos = () => {
   const dispatch = useDispatch();
 
+  // FIX 4: selector limpio, sin fallback innecesario a `lista`
   const equiposRedux = useSelector((s) => s.equipos.list ?? []);
-  const excelData    = useSelector((s) => s.equipos.excelData);
+
+  // FIX 1: excelData viene de Redux → persiste entre navegaciones
+  const excelData = useSelector((s) => s.equipos.excelData);
 
   const [loading, setLoading]         = useState(false);
   const [message, setMessage]         = useState(null);
@@ -167,40 +96,14 @@ const Equipos = () => {
   const [page, setPage]               = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
 
-  // ── Estado hojas ────────────────────────────────────────────────────────────
-  const [sheetNames, setSheetNames]   = useState([]);   // todas las hojas del Excel
-  const [allSheets, setAllSheets]     = useState({});   // { nombre: rows[] }
-  const [activeSheet, setActiveSheet] = useState('');   // hoja seleccionada
-
-  // ── Estado Google Sheets ───────────────────────────────────────────────────
-  const [googleSheetUrl, setGoogleSheetUrl]   = useState('');
-  const [googleSheetId, setGoogleSheetId]     = useState('');
-  const [googleSheets, setGoogleSheets]       = useState({});   // { gid: rows[] }
-  const [googleSheetNames, setGoogleSheetNames] = useState([]);
-  const [activeGoogleSheet, setActiveGoogleSheet] = useState('');
-  const [showGoogleUrlDialog, setShowGoogleUrlDialog] = useState(false);
-
   const [open, setOpen]          = useState(false);
-  const [editingRow, setEditing] = useState(null);
+  const [editingRow, setEditing] = useState(null); // { row, index } | null
   const [form, setForm]          = useState({});
 
   const fileInputRef = useRef(null);
 
-  // ── Datos activos según hoja seleccionada ───────────────────────────────────
-  const sheetRows = activeSheet && allSheets[activeSheet]
-    ? allSheets[activeSheet]
-    : null;
-
-  const googleRows = activeGoogleSheet && googleSheets[activeGoogleSheet]
-    ? googleSheets[activeGoogleSheet]
-    : null;
-
-  const activeData    = googleRows ?? sheetRows ?? excelData?.rows ?? equiposRedux;
-  const activeColumns = googleRows
-    ? normalizeColumns(googleRows)
-    : sheetRows
-    ? normalizeColumns(sheetRows)
-    : excelData?.columns ?? BASE_COLUMNS;
+  const activeData    = excelData ? excelData.rows    : equiposRedux;
+  const activeColumns = excelData ? excelData.columns : BASE_COLUMNS;
 
   const filteredData = activeData.filter((row) =>
     activeColumns.some((col) =>
@@ -221,28 +124,17 @@ const Equipos = () => {
     setMessage(null);
     setSearch('');
     setPage(0);
-
     try {
-      const { sheetNames: names, allSheets: sheets } = await readExcelFile(file);
-      if (!names.length) throw new Error('El archivo Excel está vacío.');
+      const rows = await readExcelFile(file);
+      if (!rows.length) throw new Error('El archivo Excel está vacío.');
+      const columns = normalizeColumns(rows);
 
-      // Guardar todas las hojas en estado local
-      setSheetNames(names);
-      setAllSheets(sheets);
-
-      // Cargar la primera hoja por defecto
-      const firstSheet = names[0];
-      setActiveSheet(firstSheet);
-
-      const firstRows    = sheets[firstSheet];
-      const firstColumns = normalizeColumns(firstRows);
-
-      // Guardar en Redux la primera hoja (para Dashboard)
-      dispatch(setExcelData({ rows: firstRows, columns: firstColumns, filename: file.name }));
+      // FIX 1: guardar en Redux con la acción del slice
+      dispatch(setExcelData({ rows, columns, filename: file.name }));
 
       setMessage({
         type: 'success',
-        text: `✓ "${file.name}" cargado — ${names.length} hoja(s) · ${firstRows.length} registros en "${firstSheet}"`,
+        text: `✓ "${file.name}" cargado — ${rows.length} registros · ${columns.length} columnas detectadas`,
       });
       setTimeout(() => setMessage(null), 5000);
     } catch (err) {
@@ -252,112 +144,20 @@ const Equipos = () => {
     }
   };
 
-  // ── Cambiar hoja activa ─────────────────────────────────────────────────────
-  const handleSheetChange = (e) => {
-    const name = e.target.value;
-    setActiveSheet(name);
-    setSearch('');
-    setPage(0);
-
-    // Actualizar Redux con la hoja seleccionada (para que Dashboard también la vea)
-    const rows    = allSheets[name] ?? [];
-    const columns = normalizeColumns(rows);
-    dispatch(setExcelData({ rows, columns, filename: excelData?.filename ?? '' }));
-
-    setMessage({
-      type: 'info',
-      text: `Hoja "${name}" cargada — ${rows.length} registros · ${columns.length} columnas`,
-    });
-    setTimeout(() => setMessage(null), 3000);
-  };
-
   const handleClearExcel = () => {
+    // FIX 1: limpiar desde Redux
     dispatch(clearExcelData());
-    setSheetNames([]);
-    setAllSheets({});
-    setActiveSheet('');
     setSearch('');
     setPage(0);
     setMessage({ type: 'info', text: 'Excel eliminado. Mostrando inventario base.' });
     setTimeout(() => setMessage(null), 3000);
   };
 
-  // ── Google Sheets ───────────────────────────────────────────────────────────
-  const handleLoadGoogleSheet = async () => {
-    if (!googleSheetUrl.trim()) {
-      setMessage({ type: 'error', text: 'Por favor ingresa una URL válida de Google Sheet' });
-      return;
-    }
-
-    const sheetId = extractSheetId(googleSheetUrl);
-    if (!sheetId) {
-      setMessage({ type: 'error', text: 'URL de Google Sheet inválida. Verifica el enlace.' });
-      return;
-    }
-
-    setLoading(true);
-    setMessage(null);
-
-    try {
-      const isValid = await fetchGoogleSheetMetadata(sheetId);
-      if (!isValid) throw new Error('No se pudo acceder al documento');
-
-      // Detectar todas las hojas disponibles
-      const allDetectedSheets = await detectAllGoogleSheets(sheetId);
-      
-      if (!Object.keys(allDetectedSheets).length) {
-        throw new Error('No se encontraron hojas con contenido en este Google Sheet');
-      }
-
-      const sheetNamesList = Object.keys(allDetectedSheets);
-      const firstSheetName = sheetNamesList[0];
-      const firstSheetData = allDetectedSheets[firstSheetName];
-
-      // Crear objeto con solo las filas para mantener compatibilidad
-      const newSheets = {};
-      Object.entries(allDetectedSheets).forEach(([name, data]) => {
-        newSheets[name] = data.rows;
-      });
-
-      setGoogleSheetId(sheetId);
-      setGoogleSheets(newSheets);
-      setGoogleSheetNames(sheetNamesList);
-      setActiveGoogleSheet(firstSheetName);
-      setSearch('');
-      setPage(0);
-
-      setMessage({
-        type: 'success',
-        text: `✓ Google Sheet cargado — ${sheetNamesList.length} hoja(s) · ${firstSheetData.rows.length} registros`,
-      });
-
-      setShowGoogleUrlDialog(false);
-      setGoogleSheetUrl('');
-
-      setTimeout(() => setMessage(null), 5000);
-    } catch (err) {
-      setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Error desconocido' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleClearGoogleSheet = () => {
-    setGoogleSheetUrl('');
-    setGoogleSheetId('');
-    setGoogleSheets({});
-    setGoogleSheetNames([]);
-    setActiveGoogleSheet('');
-    setSearch('');
-    setPage(0);
-    setMessage({ type: 'info', text: 'Google Sheet eliminado. Mostrando inventario base.' });
-    setTimeout(() => setMessage(null), 3000);
-  };
-
   // ── Exportar ────────────────────────────────────────────────────────────────
   const handleExport = () => {
     if (!filteredData.length) return;
-    exportToExcel(filteredData, activeColumns, activeSheet || (excelData ? 'exportado' : 'equipos'));
+    // FIX 3: exportar filteredData, no activeData completo
+    exportToExcel(filteredData, activeColumns, excelData ? 'exportado' : 'equipos');
   };
 
   // ── CRUD ────────────────────────────────────────────────────────────────────
@@ -367,6 +167,7 @@ const Equipos = () => {
     setOpen(true);
   };
 
+  // FIX 2: recibe índice explícito desde el map, sin indexOf
   const handleOpenEdit = (row, realIndex) => {
     setEditing({ row, index: realIndex });
     setForm({ ...row });
@@ -375,6 +176,7 @@ const Equipos = () => {
 
   const handleSave = () => {
     if (excelData && editingRow !== null) {
+      // FIX 1 + 2: usar acción Redux con índice real
       dispatch(updateExcelRow({ index: editingRow.index, row: { ...form } }));
     } else if (editingRow !== null) {
       dispatch(updateEquipo({ ...form, id: editingRow.row.id }));
@@ -388,6 +190,7 @@ const Equipos = () => {
   const handleDelete = (row, realIndex) => {
     if (!window.confirm('¿Eliminar este registro?')) return;
     if (excelData) {
+      // FIX 1 + 2: usar acción Redux con índice real
       dispatch(deleteExcelRow(realIndex));
     } else {
       dispatch(deleteEquipo(row.id));
@@ -400,25 +203,26 @@ const Equipos = () => {
       {/* Cabecera */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Box>
-          <Typography variant="h5" fontWeight={700}>Gestión de Equipos</Typography>
+          <Typography variant="h5" fontWeight={700}>
+            Gestión de Equipos
+          </Typography>
           <Typography variant="body2" color="text.secondary">
             {excelData
-              ? `Mostrando: ${excelData.filename}${activeSheet ? ` › ${activeSheet}` : ''}`
+              ? `Mostrando: ${excelData.filename}`
               : 'Inventario base del sistema'}
           </Typography>
         </Box>
 
-        <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
+        <Stack direction="row" spacing={1} flexWrap="wrap">
           <input
             ref={fileInputRef}
             type="file"
-            accept=".xlsx,.xls,.xlsm,.xlsb,.ods,.csv"
+            accept=".xlsx,.xls"
             style={{ display: 'none' }}
             onChange={handleFileChange}
           />
 
-          {/* Botón cargar */}
-          <Tooltip title={excelData ? 'Carga un nuevo Excel (borra el actual)' : 'Cargar archivo Excel'}>
+          <Tooltip title={excelData ? 'Carga un nuevo Excel (borra el actual automáticamente)' : 'Cargar archivo Excel'}>
             <Button
               variant="contained"
               startIcon={<FileUpload />}
@@ -429,71 +233,10 @@ const Equipos = () => {
             </Button>
           </Tooltip>
 
-          {/* Botón Google Sheets */}
-          <Tooltip title="Cargar desde Google Sheets">
-            <Button
-              variant="contained"
-              startIcon={<FileUpload />}
-              onClick={() => setShowGoogleUrlDialog(true)}
-              color={googleSheetId ? 'success' : 'info'}
-            >
-              {googleSheetId ? 'Google Sheet ✓' : 'Google Sheet'}
-            </Button>
-          </Tooltip>
-
-          {/* Select de hojas — aparece solo cuando hay Excel cargado */}
-          {sheetNames.length > 0 && (
-            <FormControl size="small" sx={{ minWidth: 180 }}>
-              <InputLabel>Hoja Excel</InputLabel>
-              <Select
-                value={activeSheet}
-                label="Hoja Excel"
-                onChange={handleSheetChange}
-              >
-                {sheetNames.map((name) => (
-                  <MenuItem key={name} value={name}>
-                    📋 {name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          )}
-
-          {/* Select de hojas Google — aparece solo cuando hay Google Sheet cargado */}
-          {googleSheetNames.length > 0 && (
-            <FormControl size="small" sx={{ minWidth: 180 }}>
-              <InputLabel>Hoja Google</InputLabel>
-              <Select
-                value={activeGoogleSheet}
-                label="Hoja Google"
-                onChange={(e) => {
-                  const gid = e.target.value;
-                  setActiveGoogleSheet(gid);
-                  setSearch('');
-                  setPage(0);
-                }}
-              >
-                {googleSheetNames.map((name, idx) => (
-                  <MenuItem key={idx} value={name}>
-                    📊 {name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          )}
-
           {excelData && (
             <Tooltip title="Volver al inventario base">
               <Button variant="outlined" color="error" startIcon={<Close />} onClick={handleClearExcel}>
                 Limpiar
-              </Button>
-            </Tooltip>
-          )}
-
-          {googleSheetId && (
-            <Tooltip title="Eliminar Google Sheet">
-              <Button variant="outlined" color="error" startIcon={<Close />} onClick={handleClearGoogleSheet}>
-                Limpiar Google
               </Button>
             </Tooltip>
           )}
@@ -532,58 +275,21 @@ const Equipos = () => {
           variant="outlined"
           sx={{
             mb: 2, p: 1.5,
-            display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap',
+            display: 'flex', alignItems: 'center', gap: 1.5,
             borderColor: 'success.light', bgcolor: 'success.50', borderRadius: 2,
           }}
         >
           <TableChart color="success" fontSize="small" />
           <Typography variant="body2" color="success.dark" fontWeight={500}>
             <strong>{excelData.filename}</strong>
-            {' — '}{activeData.length} registros · {activeColumns.length} columnas
-            {activeSheet && <> · Hoja: <strong>{activeSheet}</strong></>}
+            {' — '}{excelData.rows.length} registros · {excelData.columns.length} columnas
           </Typography>
-          {sheetNames.length > 1 && (
-            <Chip
-              label={`${sheetNames.length} hojas disponibles`}
-              size="small"
-              color="primary"
-              variant="outlined"
-              sx={{ fontSize: '0.65rem' }}
-            />
-          )}
           <Chip
             label="Al cargar otro Excel este se reemplaza"
             size="small"
             color="warning"
             sx={{ ml: 'auto', fontSize: '0.65rem' }}
           />
-        </Paper>
-      )}
-
-      {googleSheetId && (
-        <Paper
-          variant="outlined"
-          sx={{
-            mb: 2, p: 1.5,
-            display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap',
-            borderColor: 'info.light', bgcolor: 'info.50', borderRadius: 2,
-          }}
-        >
-          <TableChart color="info" fontSize="small" />
-          <Typography variant="body2" color="info.dark" fontWeight={500}>
-            <strong>Google Sheet</strong>
-            {' — '}{activeData.length} registros · {activeColumns.length} columnas
-            {activeGoogleSheet && <> · Hoja: <strong>{activeGoogleSheet}</strong></>}
-          </Typography>
-          {googleSheetNames.length > 1 && (
-            <Chip
-              label={`${googleSheetNames.length} hojas disponibles`}
-              size="small"
-              color="primary"
-              variant="outlined"
-              sx={{ fontSize: '0.65rem' }}
-            />
-          )}
         </Paper>
       )}
 
@@ -651,13 +357,20 @@ const Equipos = () => {
                   </TableCell>
                 </TableRow>
               ) : (
+                // FIX 2: idx se usa para calcular el índice real en activeData
                 paginated.map((row, idx) => {
+                  // Índice real dentro de filteredData (que puede estar filtrado y paginado)
                   const filteredIndex = page * rowsPerPage + idx;
-                  const realIndex = activeData.indexOf(filteredData[filteredIndex]);
-                  const rowKey = row.id != null ? row.id : realIndex;
+                  // Para operaciones sobre excelData.rows necesitamos el índice en activeData.
+                  // Si hay búsqueda activa, filteredData[filteredIndex] apunta a la fila correcta,
+                  // pero el índice en excelData.rows puede diferir. Lo resolvemos buscándolo una
+                  // sola vez de forma segura por referencia de objeto.
+                  const realIndex = excelData
+                    ? excelData.rows.indexOf(filteredData[filteredIndex])
+                    : filteredIndex;
 
                   return (
-                    <TableRow key={rowKey} hover sx={{ '&:last-child td': { border: 0 } }}>
+                    <TableRow key={realIndex} hover sx={{ '&:last-child td': { border: 0 } }}>
                       <TableCell sx={{ color: 'text.disabled', fontSize: '0.72rem' }}>
                         {filteredIndex + 1}
                       </TableCell>
@@ -703,10 +416,13 @@ const Equipos = () => {
                           <Tooltip title="Editar registro" placement="top">
                             <IconButton
                               size="small"
+                              // FIX 2: pasar realIndex explícito al handler
                               onClick={() => handleOpenEdit(row, realIndex)}
                               sx={{
-                                color: 'primary.main', bgcolor: 'primary.50',
-                                '&:hover': { bgcolor: 'primary.100' }, borderRadius: 1,
+                                color: 'primary.main',
+                                bgcolor: 'primary.50',
+                                '&:hover': { bgcolor: 'primary.100' },
+                                borderRadius: 1,
                               }}
                             >
                               <Edit fontSize="small" />
@@ -714,9 +430,15 @@ const Equipos = () => {
                           </Tooltip>
                           <Tooltip title="Eliminar registro" placement="top">
                             <IconButton
-                              size="small" color="error"
+                              size="small"
+                              color="error"
+                              // FIX 2: pasar realIndex explícito al handler
                               onClick={() => handleDelete(row, realIndex)}
-                              sx={{ bgcolor: 'error.50', '&:hover': { bgcolor: 'error.100' }, borderRadius: 1 }}
+                              sx={{
+                                bgcolor: 'error.50',
+                                '&:hover': { bgcolor: 'error.100' },
+                                borderRadius: 1,
+                              }}
                             >
                               <Delete fontSize="small" />
                             </IconButton>
@@ -755,7 +477,8 @@ const Equipos = () => {
                 label={col.label}
                 value={form[col.key] ?? ''}
                 onChange={(e) => setForm((p) => ({ ...p, [col.key]: e.target.value }))}
-                fullWidth size="small"
+                fullWidth
+                size="small"
               />
             ))}
           </Stack>
@@ -764,45 +487,6 @@ const Equipos = () => {
           <Button onClick={() => setOpen(false)}>Cancelar</Button>
           <Button variant="contained" onClick={handleSave}>
             {editingRow ? 'Actualizar' : 'Crear'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Modal Google Sheet URL */}
-      <Dialog open={showGoogleUrlDialog} onClose={() => setShowGoogleUrlDialog(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Cargar Google Sheet</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 2 }}>
-            <Typography variant="body2" color="text.secondary">
-              Ingresa el enlace de tu Google Sheet compartido. Asegúrate de que el documento sea accesible públicamente.
-            </Typography>
-            <TextField
-              fullWidth
-              label="URL de Google Sheet"
-              placeholder="https://docs.google.com/spreadsheets/d/..."
-              value={googleSheetUrl}
-              onChange={(e) => setGoogleSheetUrl(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleLoadGoogleSheet();
-                }
-              }}
-              helperText="Ejemplo: https://docs.google.com/spreadsheets/d/1abc123xyz/edit"
-              disabled={loading}
-            />
-            <Alert severity="info" sx={{ fontSize: '0.85rem' }}>
-              💡 Consejo: Verifica que el documento tenga permisos de visualización pública o compartido.
-            </Alert>
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowGoogleUrlDialog(false)}>Cancelar</Button>
-          <Button
-            variant="contained"
-            onClick={handleLoadGoogleSheet}
-            disabled={loading || !googleSheetUrl.trim()}
-          >
-            {loading ? 'Cargando...' : 'Cargar'}
           </Button>
         </DialogActions>
       </Dialog>

@@ -24,7 +24,6 @@ import {
   Lock,
 } from '@mui/icons-material';
 import { loginSuccess } from '../store/slices/authSlice.js';
-import { loginWithMCP } from '../services/authService.js';
 import { mockUsuarios } from '../data/mockData.js';
 
 // Usuarios demo con sus credenciales
@@ -40,7 +39,7 @@ const Login = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  const [form, setForm] = useState({ user: '', password: '' });
+  const [form, setForm] = useState({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -51,7 +50,7 @@ const Login = () => {
   };
 
   const handleQuickLogin = (usuario) => {
-    setForm({ user: usuario.user ?? usuario.email, password: '1234' });
+    setForm({ email: usuario.email, password: '1234' });
     setLocalError('');
   };
 
@@ -59,51 +58,22 @@ const Login = () => {
     e.preventDefault();
     setLocalError('');
 
-    if (!form.user || !form.password) {
+    if (!form.email || !form.password) {
       setLocalError('Por favor completa todos los campos.');
       return;
     }
 
     setIsLoading(true);
 
-    let usuario;
+    // Simular delay de autenticación
+    await new Promise((r) => setTimeout(r, 800));
 
-    try {
-      const remoteResult = await loginWithMCP(form.user, form.password);
-
-      if (remoteResult?.authenticated === true || remoteResult?.user) {
-        usuario = remoteResult.user || {
-          id: remoteResult.id ?? form.user,
-          nombre: remoteResult.nombre || remoteResult.name || form.user,
-          email: form.user,
-          rol: remoteResult.rol || remoteResult.role || 'visualizador',
-          sede: remoteResult.sede || 'Central',
-        };
-      } else {
-        throw new Error(remoteResult?.message || 'Credenciales incorrectas.');
-      }
-    } catch (error) {
-      const message = String(error.message || 'Error desconocido.');
-      const isNetworkError =
-        error instanceof TypeError ||
-        /failed to fetch|network error|timeout/i.test(message);
-      const unsupportedMethod = /Method not supported/i.test(message);
-
-      if (isNetworkError || unsupportedMethod) {
-        usuario = DEMO_USERS.find(
-          (u) => (u.user === form.user || u.email === form.user) && u.password === form.password
-        );
-      } else {
-        setLocalError(message);
-        setIsLoading(false);
-        return;
-      }
-    }
+    const usuario = DEMO_USERS.find(
+      (u) => u.email === form.email && u.password === form.password
+    );
 
     if (!usuario) {
-      setLocalError(
-        'Credenciales incorrectas. Usa los accesos rápidos de prueba o configura el método de autenticación MCP.'
-      );
+      setLocalError('Credenciales incorrectas. Usa los accesos rápidos de prueba.');
       setIsLoading(false);
       return;
     }
@@ -153,8 +123,8 @@ const Login = () => {
         </Box>
 
         <Card elevation={3} sx={{ borderRadius: 3 }}>
-          <CardContent sx={{ p: 3, textAlign: 'center' }}>
-            <Typography variant="h6" fontWeight={600} gutterBottom >
+          <CardContent sx={{ p: 3 }}>
+            <Typography variant="h6" fontWeight={600} gutterBottom>
               Iniciar sesión
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
@@ -170,10 +140,10 @@ const Login = () => {
             <Box component="form" onSubmit={handleSubmit}>
               <TextField
                 fullWidth
-                label="Usuario"
-                name="user"
-                type="text"
-                value={form.user}
+                label="Correo electrónico"
+                name="email"
+                type="email"
+                value={form.email}
                 onChange={handleChange}
                 sx={{ mb: 2 }}
                 InputProps={{
@@ -258,7 +228,7 @@ const Login = () => {
                       {u.nombre}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {u.user ?? u.email}
+                      {u.email}
                     </Typography>
                   </Box>
                   <Chip
